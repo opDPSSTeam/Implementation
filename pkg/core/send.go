@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"log"
 	"net"
 
@@ -11,7 +10,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-//MAXMESSAGE is the size of channels
 var MAXMESSAGE = 1024
 
 //MakeSendChannel returns a channel to send messages to hostIP
@@ -24,14 +22,14 @@ func MakeSendChannel(hostIP string, hostPort string) chan *protobuf.Message {
 	for retry {
 		addr, err1 = net.ResolveTCPAddr("tcp4", hostIP+":"+hostPort)
 		conn, err2 = net.DialTCP("tcp4", nil, addr)
-		conn.SetKeepAlive(true)
 		if err1 != nil || err2 != nil {
-			log.Fatalln(err1)
-			log.Fatalln(err2)
-			// retry = true
+			log.Fatalln("try to connect failed and retry", err1, err2)
+			retry = true
+			continue
 		} else {
 			retry = false
 		}
+		conn.SetKeepAlive(true)
 	}
 	//Make the send channel and the handle func
 	sendChannel := make(chan *protobuf.Message, MAXMESSAGE)
@@ -42,20 +40,14 @@ func MakeSendChannel(hostIP string, hostPort string) chan *protobuf.Message {
 			//Do Marshal
 			byt, err1 := proto.Marshal(m)
 			if err1 != nil {
-				fmt.Printf("Send message ERROR:%v\n", err1)
-				log.Fatalln(err1)
+				log.Fatalln("do marshal failed", err1)
 			}
 			//Send bytes
 			length := len(byt)
 			_, err2 := conn.Write(utils.IntToBytes(length))
 			_, err3 := conn.Write(byt)
-			if err2 != nil {
-				fmt.Printf("Send message ERROR:%v\n", err2)
-				log.Fatalln("The send channel has broken down!", err2)
-			}
-			if err3 != nil {
-				fmt.Printf("Send message ERROR:%v\n", err3)
-				log.Fatalln("The send channel has broken down!", err3)
+			if err2 != nil || err3 != nil {
+				log.Fatalln("The send channel has break down!", err2, err3)
 			}
 		}
 	}(conn, sendChannel)

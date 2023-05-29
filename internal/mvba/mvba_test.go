@@ -40,7 +40,7 @@ func TestMainProcess(t *testing.T) {
 
 	var p []*party.HonestParty = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(N, F, i, ipList, portList, pk, sk[i])
+		p[i] = party.NewHonestParty(1, N, F, i, ipList, portList, ipList, portList, pk, sk[i])
 	}
 
 	for i := uint32(0); i < N; i++ {

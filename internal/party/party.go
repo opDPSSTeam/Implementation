@@ -1,10 +1,13 @@
 package party
 
 import (
-	"errors"
 	"sync"
 
-	"github.com/opDPSSTeam/DPSS/pkg/core"
+	kyberbls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/sign"
+	"github.com/drand/kyber/sign/tbls"
+	"github.com/opDPSSTeam/DPSS/internal/bls"
+	"github.com/opDPSSTeam/DPSS/internal/polycommit"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 
 	"go.dedis.ch/kyber/v3/share"
@@ -19,86 +22,73 @@ type Party interface {
 
 //HonestParty is a struct of honest consensus parties
 type HonestParty struct {
-	N                 uint32
-	F                 uint32
-	PID               uint32
-	ipList            []string
-	portList          []string
-	sendChannels      []chan *protobuf.Message
-	dispatcheChannels *sync.Map
+	e            uint32   // epoch number
+	N            uint32   // committee size
+	F            uint32   // number of corrupted parties
+	PID          uint32   // id of this party
+	ipList       []string // ip list of the current committee
+	portList     []string // port list of the current committee
+	sendChannels []chan *protobuf.Message
 
-	SigPK *share.PubPoly  //tss pk
-	SigSK *share.PriShare //tss sk
+	ipListNext         []string // ip list of the new committee
+	portListNext       []string // port list of the new committee
+	sendToNextChannels []chan *protobuf.Message
+	dispatchChannels   *sync.Map
+
+	FS       *polycommit.FFTSettings
+	KZG      *polycommit.KZGSettings
+	mutexKZG *sync.Mutex
+
+	tblsScheme sign.ThresholdScheme
+	SigPK      *share.PubPoly  //tss pk
+	SigSK      *share.PriShare //tss sk
+
+	LagrangeCoefficients [][]bls.Fr //lagrange coefficients when using f(1),f(2),...,f(2t+1) to calculate f(k) for 0 <= k <= 3*f+1.Indices start from 0
 }
 
 //NewHonestParty return a new honest party object
-func NewHonestParty(N uint32, F uint32, pid uint32, ipList []string, portList []string, sigPK *share.PubPoly, sigSK *share.PriShare) *HonestParty {
-	p := HonestParty{
-		N:            N,
-		F:            F,
-		PID:          pid,
-		ipList:       ipList,
-		portList:     portList,
-		sendChannels: make([]chan *protobuf.Message, N),
+func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, portList []string, ipListNext []string, portListNext []string, sigPK *share.PubPoly, sigSK *share.PriShare) *HonestParty {
+	var SysSuite = kyberbls.NewBLS12381Suite()
+	tblsScheme := tbls.NewThresholdSchemeOnG1(SysSuite)
 
-		SigPK: sigPK,
-		SigSK: sigSK,
+	secretG1, secretG2 := polycommit.GenerateTestingSetup("46015081477078601964787943834255776126696019968430095991502055467779756761969", uint64(F+1))
+	KZG := polycommit.NewKZGSettings(nil, secretG1, secretG2)
+
+	var mutexKZG sync.Mutex
+
+	LagrangeCoefficients := make([][]bls.Fr, N+1)
+	knownIndices := make([]bls.Fr, 2*F+1)
+	for i := 0; uint32(i) < 2*F+1; i++ {
+		bls.AsFr(&knownIndices[i], uint64(i+1))
+	}
+
+	for i := 0; uint32(i) <= N; i++ {
+		LagrangeCoefficients[i] = make([]bls.Fr, 2*F+1)
+		var target bls.Fr
+		bls.AsFr(&target, uint64(i))
+		GetLagrangeCoefficients(2*F, knownIndices, target, LagrangeCoefficients[i])
+	}
+
+	p := HonestParty{
+		e:                  e,
+		N:                  N,
+		F:                  F,
+		PID:                pid,
+		ipList:             ipList,
+		portList:           portList,
+		ipListNext:         ipListNext,
+		portListNext:       portListNext,
+		sendChannels:       make([]chan *protobuf.Message, N),
+		sendToNextChannels: make([]chan *protobuf.Message, N),
+
+		tblsScheme: tblsScheme,
+		SigPK:      sigPK,
+		SigSK:      sigSK,
+
+		KZG:      KZG,
+		mutexKZG: &mutexKZG,
+
+		LagrangeCoefficients: LagrangeCoefficients,
 	}
 	return &p
-}
-
-//InitReceiveChannel setup the listener and Init the receiveChannel
-func (p *HonestParty) InitReceiveChannel() error {
-	p.dispatcheChannels = core.MakeDispatcheChannels(core.MakeReceiveChannel(p.portList[p.PID]), p.N)
-	return nil
-}
-
-//InitSendChannel setup the sender and Init the sendChannel, please run this after initializing all party's receiveChannel
-func (p *HonestParty) InitSendChannel() error {
-	for i := uint32(0); i < p.N; i++ {
-		p.sendChannels[i] = core.MakeSendChannel(p.ipList[i], p.portList[i])
-	}
-	return nil
-}
-
-//Send a message to party des
-func (p *HonestParty) Send(m *protobuf.Message, des uint32) error {
-	if !p.checkInit() {
-		return errors.New("This party hasn't been initialized")
-	}
-	if des < p.N {
-		p.sendChannels[des] <- m
-		return nil
-	}
-	return errors.New("Destination id is too large")
-}
-
-//Broadcast a message to all parties
-func (p *HonestParty) Broadcast(m *protobuf.Message) error {
-	if !p.checkInit() {
-		return errors.New("This party hasn't been initialized")
-	}
-	for i := uint32(0); i < p.N; i++ {
-		err := p.Send(m, i)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-//GetMessage Try to get a message according to messageType, ID
-func (p *HonestParty) GetMessage(messageType string, ID []byte) chan *protobuf.Message {
-	value1, _ := p.dispatcheChannels.LoadOrStore(messageType, new(sync.Map))
-
-	value2, _ := value1.(*sync.Map).LoadOrStore(string(ID), make(chan *protobuf.Message, p.N))
-
-	return value2.(chan *protobuf.Message)
-}
-
-func (p *HonestParty) checkInit() bool {
-	if p.sendChannels == nil {
-		return false
-	}
-	return true
 }

@@ -4,7 +4,11 @@ import (
 	"sync"
 
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
+	"google.golang.org/protobuf/proto"
 )
+
+var Mu = new(sync.Mutex)
+var Traffic = 0
 
 // MakeDispatcheChannels dispatche messages from receiveChannel
 // and make a double layer Map : (messageType) --> (id) --> (channel)
@@ -16,12 +20,13 @@ func MakeDispatcheChannels(receiveChannel chan *protobuf.Message, N uint32) *syn
 			m := <-(receiveChannel)
 			value1, _ := dispatcheChannels.LoadOrStore(m.Type, new(sync.Map))
 
-			value2, _ := value1.(*sync.Map).LoadOrStore(string(m.Id), make(chan *protobuf.Message, N*N)) //ch change the size to N*N
+			value2, _ := value1.(*sync.Map).LoadOrStore(string(m.Id), make(chan *protobuf.Message, N))
 
 			value2.(chan *protobuf.Message) <- m
-			//TODO: check reply attack?
-			//TODO: check m.Sender with ip||port
 
+			Mu.Lock()
+			Traffic += proto.Size(m)
+			Mu.Unlock()
 		}
 	}()
 	return dispatcheChannels

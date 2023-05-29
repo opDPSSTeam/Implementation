@@ -4,6 +4,8 @@ go 1.18
 
 require (
 	github.com/cbergoon/merkletree v0.2.0
+	github.com/drand/kyber v1.2.0
+	github.com/drand/kyber-bls12381 v0.2.5
 	github.com/herumi/bls-eth-go-binary v1.29.1
 	github.com/holiman/uint256 v1.2.2
 	github.com/kilic/bls12-381 v0.1.1-0.20220929213557-ca162e8a70f4
