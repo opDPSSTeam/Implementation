@@ -2,7 +2,7 @@
 // +build bignum_pure
 
 /*
-forked from https://github.com/protolambda/go-kzg at Feb 2,2023
+forked from https://github.com/protolambda/go-kzg on 29 May, 2023
 */
 package bls
 

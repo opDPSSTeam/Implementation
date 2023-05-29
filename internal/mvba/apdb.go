@@ -1,3 +1,7 @@
+/*
+forked from https://github.com/xygdys/Dory-BFT-Consensus on 29 May, 2023
+*/
+
 package mvba //smvba with dispersal-then-recast
 
 import (

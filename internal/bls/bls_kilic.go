@@ -2,15 +2,16 @@
 // +build !bignum_pure,!bignum_hol256,!bignum_hbls
 
 /*
-forked from https://github.com/protolambda/go-kzg at Feb 2,2023
+forked from https://github.com/protolambda/go-kzg on 29 May, 2023
 */
 package bls
 
 import (
 	"fmt"
-	kbls "github.com/kilic/bls12-381"
 	"math/big"
 	"strings"
+
+	kbls "github.com/kilic/bls12-381"
 )
 
 var ZERO_G1 G1Point
