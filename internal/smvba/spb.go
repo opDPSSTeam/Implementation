@@ -11,8 +11,8 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/party"
 	"github.com/opDPSSTeam/DPSS/internal/pb"
 
-	"go.dedis.ch/kyber/v3/pairing"
-	"go.dedis.ch/kyber/v3/sign/bls"
+	kyberbls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/sign/bls"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -66,6 +66,6 @@ func validator2(p *party.HonestParty, ID []byte, value []byte, validation []byte
 	buf.WriteByte(1)
 	buf.Write(h[:])
 	sm := buf.Bytes()
-	err := bls.Verify(pairing.NewSuiteBn256(), p.SigPK.Commit(), sm, validation)
+	err := bls.NewSchemeOnG1(kyberbls.NewBLS12381Suite()).Verify(p.SigPK.Commit(), sm, validation)
 	return err
 }

@@ -13,13 +13,14 @@ import (
 	"github.com/opDPSSTeam/DPSS/pkg/core"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 
-	"go.dedis.ch/kyber/v3/pairing"
-	"go.dedis.ch/kyber/v3/sign/tbls"
+	kyberbls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/sign/tbls"
 	"golang.org/x/crypto/sha3"
 )
 
 //Sender is run by the sender of a instance of provable broadcast
 func Sender(ctx context.Context, p *party.HonestParty, ID []byte, value []byte, validation []byte) ([]byte, []byte, bool) {
+	tblsScheme := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite())
 	valueMessage := core.Encapsulation("Value", ID, p.PID, &protobuf.Value{
 		Value:      value,
 		Validation: validation,
@@ -41,10 +42,14 @@ func Sender(ctx context.Context, p *party.HonestParty, ID []byte, value []byte, 
 			return nil, nil, false
 		case m := <-p.GetMessage("Echo", ID):
 			payload := core.Decapsulation("Echo", m).(*protobuf.Echo)
-			sigs = append(sigs, payload.Sigshare)
-			if len(sigs) > int(2*p.F) {
-				signature, _ := tbls.Recover(pairing.NewSuiteBn256(), p.SigPK, sm, sigs, int(2*p.F+1), int(p.N))
-				return h[:], signature, true
+			err := tblsScheme.VerifyPartial(p.SigPK, sm, payload.Sigshare) //verifyshare("Echo"||ID||h)
+
+			if err == nil {
+				sigs = append(sigs, payload.Sigshare)
+				if len(sigs) > int(2*p.F) {
+					signature, _ := tblsScheme.Recover(p.SigPK, sm, sigs, int(2*p.F+1), int(p.N))
+					return h[:], signature, true
+				}
 			}
 		}
 	}
@@ -72,7 +77,7 @@ func Receiver(ctx context.Context, p *party.HonestParty, sender uint32, ID []byt
 		buf.Write(ID)
 		buf.Write(h[:])
 		sm := buf.Bytes()
-		sigShare, _ := tbls.Sign(pairing.NewSuiteBn256(), p.SigSK, sm) //sign("Echo"||ID||h)
+		sigShare, _ := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite()).Sign(p.SigSK, sm) //sign("Echo"||ID||h)
 
 		echoMessage := core.Encapsulation("Echo", ID, p.PID, &protobuf.Echo{
 			Sigshare: sigShare,

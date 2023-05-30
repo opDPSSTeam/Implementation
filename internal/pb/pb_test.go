@@ -8,13 +8,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"testing"
 
+	kyberbls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/sign/tbls"
 	"github.com/opDPSSTeam/DPSS/internal/party"
-
-	"go.dedis.ch/kyber/v3/pairing"
-	"go.dedis.ch/kyber/v3/sign/bls"
 	"golang.org/x/crypto/sha3"
+	"testing"
 )
 
 func TestPb(t *testing.T) {
@@ -27,7 +26,7 @@ func TestPb(t *testing.T) {
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1)
 
-	var p []*party.HonestParty = make([]*party.HonestParty, N)
+	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
 		p[i] = party.NewHonestParty(1, N, F, i, ipList, portList, ipList, portList, pk, sk[i])
 	}
@@ -43,6 +42,7 @@ func TestPb(t *testing.T) {
 	value := make([]byte, 10)
 	validation := make([]byte, 1)
 	ID := []byte{1, 2}
+	tblsScheme := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite())
 
 	go func() {
 		_, sig, _ := Sender(ctx, p[0], ID, value, validation)
@@ -53,7 +53,7 @@ func TestPb(t *testing.T) {
 		buf.Write(h[:])
 		sm := buf.Bytes()
 
-		err := bls.Verify(pairing.NewSuiteBn256(), p[0].SigPK.Commit(), sm, sig)
+		err := tblsScheme.VerifyRecovered(p[0].SigPK.Commit(), sm, sig)
 
 		fmt.Println(err)
 	}()

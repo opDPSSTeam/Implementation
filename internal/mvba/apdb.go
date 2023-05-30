@@ -2,7 +2,9 @@
 forked from https://github.com/xygdys/Dory-BFT-Consensus on 29 May, 2023
 */
 
-package mvba //smvba with dispersal-then-recast
+package mvba
+
+//smvba with dispersal-then-recast
 
 import (
 	"bytes"
@@ -13,9 +15,9 @@ import (
 	"github.com/opDPSSTeam/DPSS/pkg/reedsolomon"
 	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
 
+	kyberbls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/sign/tbls"
 	"github.com/vivint/infectious"
-	"go.dedis.ch/kyber/v3/pairing"
-	"go.dedis.ch/kyber/v3/sign/tbls"
 )
 
 //PDSender is run by senders of provable dispersal subprotocols
@@ -50,6 +52,7 @@ func PDSender(p *party.HonestParty, ID []byte, value []byte) ([]byte, []byte) {
 	buf.Write(ID)
 	buf.Write(vc)
 	sm := buf.Bytes()
+	tblsScheme := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite())
 
 	for {
 		m := <-p.GetMessage("Stored", ID)
@@ -58,7 +61,7 @@ func PDSender(p *party.HonestParty, ID []byte, value []byte) ([]byte, []byte) {
 
 		sigs = append(sigs, payload.Sigshare)
 		if len(sigs) > int(2*p.F) {
-			signature, _ := tbls.Recover(pairing.NewSuiteBn256(), p.SigPK, sm, sigs, int(2*p.F+1), int(p.N))
+			signature, _ := tblsScheme.Recover(p.SigPK, sm, sigs, int(2*p.F+1), int(p.N))
 			return vc, signature //lock
 		}
 	}
@@ -79,7 +82,7 @@ func PDReceiver(p *party.HonestParty, sender uint32, ID []byte) ([]byte, []byte,
 	buf.Write(ID)
 	buf.Write(payload.Vc)
 	sm := buf.Bytes()
-	sigShare, _ := tbls.Sign(pairing.NewSuiteBn256(), p.SigSK, sm) //sign("Stored"||ID||vc)
+	sigShare, _ := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite()).Sign(p.SigSK, sm) //sign("Stored"||ID||vc)
 
 	storedMessage := core.Encapsulation("Stored", ID, p.PID, &protobuf.Stored{
 		Sigshare: sigShare,

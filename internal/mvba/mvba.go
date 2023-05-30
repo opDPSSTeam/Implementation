@@ -13,8 +13,8 @@ import (
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 
-	"go.dedis.ch/kyber/v3/pairing"
-	"go.dedis.ch/kyber/v3/sign/bls"
+	kyberbls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/sign/bls"
 )
 
 //MainProcess is the main process of mvba instances
@@ -114,6 +114,6 @@ func validator(p *party.HonestParty, ID []byte, value []byte, validation []byte)
 	buf.Write(value)
 	sm := buf.Bytes()
 
-	err := bls.Verify(pairing.NewSuiteBn256(), p.SigPK.Commit(), sm, validation)
+	err := bls.NewSchemeOnG1(kyberbls.NewBLS12381Suite()).Verify(p.SigPK.Commit(), sm, validation)
 	return err
 }

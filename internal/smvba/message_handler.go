@@ -14,9 +14,9 @@ import (
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 
-	"go.dedis.ch/kyber/v3/pairing"
-	"go.dedis.ch/kyber/v3/sign/bls"
-	"go.dedis.ch/kyber/v3/sign/tbls"
+	kyberbls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/sign/bls"
+	"github.com/drand/kyber/sign/tbls"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -26,6 +26,8 @@ func messageHandler(ctx context.Context, p *party.HonestParty, IDr []byte, IDrj 
 	voteFlagChannel chan byte, voteYesChannel chan []byte, voteNoChannel chan []byte, voteOtherChannel chan []byte,
 	leaderChannel chan uint32, haltChannel chan []byte, r uint32) {
 
+	tblsScheme := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite())
+	blsScheme := bls.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 	//FinishMessage Handler
 	go func() {
 		FrLength := 0
@@ -42,7 +44,7 @@ func messageHandler(ctx context.Context, p *party.HonestParty, IDr []byte, IDrj 
 				buf.WriteByte(2)
 				buf.Write(h[:])
 				sm := buf.Bytes()
-				err := bls.Verify(pairing.NewSuiteBn256(), p.SigPK.Commit(), sm, payload.Sig) //verify("Echo"||ID||r||j||2||h)
+				err := blsScheme.Verify(p.SigPK.Commit(), sm, payload.Sig) //verify("Echo"||ID||r||index||2||h)
 				if err == nil {
 					Fr.Store(m.Sender, payload)
 					FrLength++
@@ -73,7 +75,7 @@ func messageHandler(ctx context.Context, p *party.HonestParty, IDr []byte, IDrj 
 					doneFlagChannel <- true
 				}
 				if len(coins) > int(2*p.F) {
-					coin, _ := tbls.Recover(pairing.NewSuiteBn256(), p.SigPK, coinName, coins, int(2*p.F+1), int(p.N))
+					coin, _ := tblsScheme.Recover(p.SigPK, coinName, coins, int(2*p.F+1), int(p.N))
 					l := utils.BytesToUint32(coin) % p.N //leader of round r
 					thisRoundLeader <- l                 //for message handler
 					leaderChannel <- l                   //for main process
@@ -101,7 +103,7 @@ func messageHandler(ctx context.Context, p *party.HonestParty, IDr []byte, IDrj 
 				buf.WriteByte(2)
 				buf.Write(h[:])
 				sm := buf.Bytes()
-				err := bls.Verify(pairing.NewSuiteBn256(), p.SigPK.Commit(), sm, payload.Sig) //verify("Echo"||ID||r||l||2||h)
+				err := blsScheme.Verify(p.SigPK.Commit(), sm, payload.Sig) //verify("Echo"||ID||r||l||2||h)
 				if err == nil {
 					haltChannel <- payload.Value
 					return
@@ -128,11 +130,11 @@ func messageHandler(ctx context.Context, p *party.HonestParty, IDr []byte, IDrj 
 					buf.WriteByte(1)
 					buf.Write(h[:])
 					sm := buf.Bytes()
-					err := bls.Verify(pairing.NewSuiteBn256(), p.SigPK.Commit(), sm, payload.Sig) //verify("Echo"||ID||r||l||1||h)
+					err := blsScheme.Verify(p.SigPK.Commit(), sm, payload.Sig) //verify("Echo"||ID||r||l||1||h)
 
 					if err == nil {
 						sm[len([]byte("Echo"))+len(IDrj[l])] = 2
-						sigShare, _ := tbls.Sign(pairing.NewSuiteBn256(), p.SigSK, sm) //sign("Echo"||ID||r||l||2||h)
+						sigShare, _ := tblsScheme.Sign(p.SigSK, sm) //sign("Echo"||ID||r||l||2||h)
 						preVoteFlagChannel <- true
 						preVoteYesChannel <- payload.Value
 						preVoteYesChannel <- payload.Sig
@@ -145,12 +147,12 @@ func messageHandler(ctx context.Context, p *party.HonestParty, IDr []byte, IDrj 
 					sm := buf.Bytes()
 					PNr = append(PNr, payload.Sig)
 					if len(PNr) > int(2*p.F) {
-						noSignature, _ := tbls.Recover(pairing.NewSuiteBn256(), p.SigPK, sm, PNr, int(2*p.F+1), int(p.N))
+						noSignature, _ := tblsScheme.Recover(p.SigPK, sm, PNr, int(2*p.F+1), int(p.N))
 						var buf bytes.Buffer
 						buf.Write([]byte("Unlock"))
 						buf.Write(IDr)
 						sm := buf.Bytes()
-						sigShare, _ := tbls.Sign(pairing.NewSuiteBn256(), p.SigSK, sm) //sign("Unlock"||ID||r)
+						sigShare, _ := tblsScheme.Sign(p.SigSK, sm) //sign("Unlock"||ID||r)
 						preVoteFlagChannel <- false
 						preVoteNoChannel <- noSignature
 						preVoteNoChannel <- sigShare
@@ -179,12 +181,12 @@ func messageHandler(ctx context.Context, p *party.HonestParty, IDr []byte, IDrj 
 					buf.WriteByte(1)
 					buf.Write(h[:])
 					sm := buf.Bytes()
-					err1 := bls.Verify(pairing.NewSuiteBn256(), p.SigPK.Commit(), sm, payload.Sig) //verify("Echo"||ID||r||l||1||h)
+					err1 := blsScheme.Verify(p.SigPK.Commit(), sm, payload.Sig) //verify("Echo"||ID||r||l||1||h)
 					sm[len([]byte("Echo"))+len(IDrj[l])] = 2
 					if err1 == nil {
 						VYr = append(VYr, payload.Sigshare)
 						if len(VYr) > int(2*p.F) {
-							sig, _ := tbls.Recover(pairing.NewSuiteBn256(), p.SigPK, sm, VYr, int(2*p.F+1), int(p.N))
+							sig, _ := tblsScheme.Recover(p.SigPK, sm, VYr, int(2*p.F+1), int(p.N))
 							voteFlagChannel <- 0
 							voteYesChannel <- payload.Value
 							voteYesChannel <- sig
@@ -199,7 +201,7 @@ func messageHandler(ctx context.Context, p *party.HonestParty, IDr []byte, IDrj 
 					buf1.WriteByte(byte(0)) //false
 					buf1.Write(IDr)
 					sm1 := buf1.Bytes()
-					err1 := bls.Verify(pairing.NewSuiteBn256(), p.SigPK.Commit(), sm1, payload.Sig) //verify(false||ID||r)
+					err1 := blsScheme.Verify(p.SigPK.Commit(), sm1, payload.Sig) //verify(false||ID||r)
 
 					var buf2 bytes.Buffer
 					buf2.Reset()
@@ -209,7 +211,7 @@ func messageHandler(ctx context.Context, p *party.HonestParty, IDr []byte, IDrj 
 					if err1 == nil {
 						VNr = append(VNr, payload.Sigshare)
 						if len(VNr) > int(2*p.F) {
-							sig, _ := tbls.Recover(pairing.NewSuiteBn256(), p.SigPK, sm2, VNr, int(2*p.F+1), int(p.N))
+							sig, _ := tblsScheme.Recover(p.SigPK, sm2, VYr, int(2*p.F+1), int(p.N))
 							voteFlagChannel <- 1
 							voteNoChannel <- sig
 						}

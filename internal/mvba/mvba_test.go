@@ -14,9 +14,9 @@ import (
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 
-	"go.dedis.ch/kyber/v3/pairing"
-	"go.dedis.ch/kyber/v3/sign/bls"
-	"go.dedis.ch/kyber/v3/sign/tbls"
+	kyberbls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/sign/bls"
+	"github.com/drand/kyber/sign/tbls"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -38,7 +38,7 @@ func TestMainProcess(t *testing.T) {
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1)
 
-	var p []*party.HonestParty = make([]*party.HonestParty, N)
+	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
 		p[i] = party.NewHonestParty(1, N, F, i, ipList, portList, ipList, portList, pk, sk[i])
 	}
@@ -55,6 +55,7 @@ func TestMainProcess(t *testing.T) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	result := make([][][]byte, testNum)
+	tblsScheme := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite())
 
 	for k := 0; k < testNum; k++ {
 		ID := utils.IntToBytes(k)
@@ -67,10 +68,10 @@ func TestMainProcess(t *testing.T) {
 		buf.Write(h)
 		sm := buf.Bytes()
 		for i := uint32(0); i < 2*F+1; i++ {
-			sigShare, _ := tbls.Sign(pairing.NewSuiteBn256(), p[i].SigSK, sm)
+			sigShare, _ := tblsScheme.Sign(p[i].SigSK, sm)
 			sigshare = append(sigshare, sigShare)
 		}
-		signature, _ := tbls.Recover(pairing.NewSuiteBn256(), p[0].SigPK, sm, sigshare, int(2*F+1), int(N))
+		signature, _ := tblsScheme.Recover(p[0].SigPK, sm, sigshare, int(2*F+1), int(N))
 		pids := make([]uint32, 2*F+1)
 		hashes := make([][]byte, 2*F+1)
 		sigs := make([][]byte, 2*F+1)
@@ -129,7 +130,7 @@ func Q(p *party.HonestParty, ID []byte, value []byte, validation []byte) error {
 		buf.Write(utils.Uint32ToBytes(L.Pid[i]))
 		buf.Write(L.Hash[i])
 		sm := buf.Bytes()
-		err := bls.Verify(pairing.NewSuiteBn256(), p.SigPK.Commit(), sm, S.Sig[i]) //verify("Echo"||e||j||h)
+		err := bls.NewSchemeOnG1(kyberbls.NewBLS12381Suite()).Verify(p.SigPK.Commit(), sm, S.Sig[i]) //verify("Echo"||e||j||h)
 		if err != nil {
 			return err
 		}
