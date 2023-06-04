@@ -4,13 +4,12 @@ import (
 	"sync"
 
 	kyberbls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/share"
 	"github.com/drand/kyber/sign"
 	"github.com/drand/kyber/sign/tbls"
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/polycommit"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
-
-	"go.dedis.ch/kyber/v3/share"
 )
 
 //Party is a interface of consensus parties
@@ -37,7 +36,9 @@ type HonestParty struct {
 
 	FS       *polycommit.FFTSettings
 	KZG      *polycommit.KZGSettings
-	mutexKZG *sync.Mutex
+	MutexKZG *sync.Mutex
+
+	share bls.Fr //share of this party
 
 	tblsScheme sign.ThresholdScheme
 	SigPK      *share.PubPoly  //tss pk
@@ -86,7 +87,9 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 		SigSK:      sigSK,
 
 		KZG:      KZG,
-		mutexKZG: &mutexKZG,
+		MutexKZG: &mutexKZG,
+
+		share: bls.ZERO,
 
 		LagrangeCoefficients: LagrangeCoefficients,
 	}

@@ -102,3 +102,13 @@ message BLockSetValue{
 message BLockSetValidation{
   repeated bytes sig = 1;
 }
+
+//wpACSS
+message vssShare{
+  repeated bytes value = 1;
+  repeated bytes proof = 2;
+}
+
+message vssEcho{
+  bytes sigshare = 1;
+}

@@ -51,3 +51,10 @@ func DeleteZero(src []byte) []byte {
 func DeleteZeroWithLen(src []byte, len int) []byte {
 	return src[0:len]
 }
+
+// SliceToArray will convert byte slice to a 32 byte array
+func SliceToArray(bytes []byte) [32]byte {
+	var byteArray [32]byte
+	copy(byteArray[:], bytes)
+	return byteArray
+}

@@ -31,6 +31,12 @@ func SetFr(dst *Fr, v string) {
 	(*kbls.Fr)(dst).RedFromBytes(bv.Bytes())
 }
 
+func SetFr16(dst *Fr, v string) {
+	var bv big.Int
+	bv.SetString(v, 16)
+	(*kbls.Fr)(dst).RedFromBytes(bv.Bytes())
+}
+
 // FrFrom32 mutates the fr num. The value v is little-endian 32-bytes.
 // Returns false, without modifying dst, if the value is out of range.
 func FrFrom32(dst *Fr, v [32]byte) (ok bool) {
