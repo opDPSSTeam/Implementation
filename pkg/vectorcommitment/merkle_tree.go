@@ -2,9 +2,9 @@ package vectorcommitment
 
 import (
 	"bytes"
+	"crypto/sha256"
 
 	m "github.com/cbergoon/merkletree"
-	"golang.org/x/crypto/sha3"
 )
 
 // implement of m.Content
@@ -17,7 +17,7 @@ func buildImplContent(x []byte) *implContent {
 }
 
 func (i *implContent) CalculateHash() ([]byte, error) {
-	hash := sha3.Sum512(i.x)
+	hash := sha256.Sum256(i.x)
 	return hash[:], nil
 }
 
@@ -43,7 +43,7 @@ func NewMerkleTree(data [][]byte) (*MerkleTree, error) {
 		c := buildImplContent(d)
 		contents = append(contents, c)
 	}
-	mk, err := m.NewTreeWithHashStrategy(contents, sha3.New512)
+	mk, err := m.NewTreeWithHashStrategy(contents, sha256.New)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func VerifyMerkleTreeProof(root []byte, proof [][]byte, indicator []int64, msg [
 	}
 	itHash, _ := (&implContent{x: msg}).CalculateHash()
 	for i, p := range proof {
-		s := sha3.New512()
+		s := sha256.New()
 		if indicator[i] == 1 {
 			s.Write(append(itHash, p...))
 		} else if indicator[i] == 0 {

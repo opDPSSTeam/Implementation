@@ -14,7 +14,7 @@ func TestInterpolation(t *testing.T) {
 
 	indexrange := 1000
 
-	for deg := 0; deg <= 64; deg++ {
+	for deg := uint32(0); deg <= 64; deg++ {
 
 		randPoly := make([]bls.Fr, deg+1)
 		for i := 0; i < len(randPoly); i++ {
@@ -26,13 +26,13 @@ func TestInterpolation(t *testing.T) {
 
 		KnownIndices := make([]bls.Fr, deg+1)
 
-		for i := 0; i < deg+1; i++ {
+		for i := uint32(0); i < deg+1; i++ {
 			bls.AsFr(&KnownIndices[i], uint64(subset[i]))
 			//bls.AsFr(&KnownIndices[i], uint64(i+1))
 		}
 
 		KnownValues := make([]bls.Fr, deg+1)
-		for i := 0; i < deg+1; i++ {
+		for i := uint32(0); i < deg+1; i++ {
 			var value bls.Fr
 			bls.EvalPolyAt(&value, randPoly, &KnownIndices[i])
 			bls.CopyFr(&KnownValues[i], &value)
@@ -47,7 +47,7 @@ func TestInterpolation(t *testing.T) {
 		time2 := time.Now()
 		log.Println("repeat=", repeat, "deg=", deg, "time=", time2.Sub(time1).Nanoseconds())
 
-		for i := 0; i < deg+1; i++ {
+		for i := uint32(0); i < deg+1; i++ {
 			if !bls.EqualFr(&polyRecoverd[i], &randPoly[i]) {
 				panic("fail")
 			}

@@ -1,4 +1,4 @@
-package DPRF
+package dprf
 
 import (
 	"crypto/rand"

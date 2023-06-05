@@ -1,4 +1,4 @@
-package DPRF
+package dprf
 
 import (
 	"crypto/sha256"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/party"
-	"github.com/opDPSSTeam/DPSS/internal/wpACSS"
+	"github.com/opDPSSTeam/DPSS/internal/vss"
 )
 
 type PiDPRF struct {
@@ -28,7 +28,7 @@ func InitDPRF(p *party.HonestParty, F uint32, N uint32) (*bls.Fr, *bls.G1Point, 
 	dsk = *bls.RandomFr()
 	bls.MulG1(&dpk, &bls.GenG1, &dsk)
 
-	Cdk, dskShare, wdk := wpACSS.VssShare(p, F, N, dsk)
+	Cdk, dskShare, wdk, _ := vss.VssShare(p, F, N, dsk)
 	var dvk = make([]bls.G1Point, N)
 	for i := uint32(0); i < N; i++ {
 		bls.MulG1(&dvk[i], &bls.GenG1, &dskShare[i+1])
@@ -57,6 +57,7 @@ func Contrib(p *party.HonestParty, x []byte, dski bls.Fr, dvki bls.G1Point) (bls
 
 	//we use sha256 to build the hash function H1(x): {0,1}* -> G1
 	//H(x)=g^sha256(x)
+	//TODO: may use the HashToCurve function in https://github.com/kilic/bls12-381/blob/master/g1.go#L831 later
 	hashedBytes := sha256.Sum256(x)
 	stringSha256x := hex.EncodeToString(hashedBytes[:])
 	bls.SetFr16(&sha256x, stringSha256x)

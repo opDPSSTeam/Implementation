@@ -7,7 +7,7 @@ import (
 )
 
 // LagrangeInterpolate returns a polynomial of specified degree that pass through all points in x and y
-func LagrangeInterpolate(degree int, x []bls.Fr, y []bls.Fr) []bls.Fr {
+func LagrangeInterpolate(degree uint32, x []bls.Fr, y []bls.Fr) []bls.Fr {
 	// initialize variables
 	tmp := make([]bls.Fr, 2)
 
@@ -23,13 +23,13 @@ func LagrangeInterpolate(degree int, x []bls.Fr, y []bls.Fr) []bls.Fr {
 	// tmp(x) = x - x[i]
 	bls.AsFr(&tmp[1], 1)
 	// note only the first degree points are used
-	for i := 0; i <= degree; i++ {
+	for i := uint32(0); i <= degree; i++ {
 		var negXi bls.Fr
 		bls.SubModFr(&negXi, &bls.ZERO, &x[i])
 		bls.CopyFr(&tmp[0], &negXi)
 		product = mulPolyDegreeOne(product, tmp)
 	}
-	for i := 0; i <= degree; i++ {
+	for i := uint32(0); i <= degree; i++ {
 		bls.CopyFr(&denominator, &bls.ONE)
 		// compute denominator and numerator
 

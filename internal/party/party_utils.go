@@ -121,7 +121,7 @@ func (p *HonestParty) checkInitSendChannelsToNext() bool {
 }
 
 //w_0,w_1,...,w^(3f+1) will be used to represent values of a polynomial.
-//The total number of values is 3f+2.So in this function we use size+1
+//The total number of values is 3f+2. So in this function we use size+1
 func GetScaleByCommitteeSize(size uint32) uint8 {
 	if size+1 > 1 && size+1 <= 2 {
 		return 1
