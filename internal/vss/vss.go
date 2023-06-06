@@ -50,10 +50,14 @@ func MakeSecret(p *party.HonestParty, f uint32, n uint32, I []bls.Fr, y []bls.Fr
 	value := make([]bls.Fr, f+1)
 	index := make([]bls.Fr, f+1)
 	for i := uint32(0); i < f+1; i++ {
-		bls.AsFr(&index[i], uint64(i+1))
+		// bls.AsFr(&index[i], uint64(i+1))
 		if i < uint32(len(I)) {
-			value[i] = y[i]
+			bls.CopyFr(&index[i], &I[i])
+			bls.CopyFr(&value[i], &y[i])
+			// index[i] = I[i]
+			// value[i] = y[i]
 		} else {
+			bls.AsFr(&index[i], uint64(n+i)) //make sure that the index value is not in I
 			value[i] = *bls.RandomFr()
 		}
 	}
