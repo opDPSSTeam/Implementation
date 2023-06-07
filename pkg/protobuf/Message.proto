@@ -104,11 +104,40 @@ message BLockSetValidation{
 }
 
 //wpACSS
-message vssShare{
-  repeated bytes value = 1;
-  repeated bytes proof = 2;
+message vInShare{
+  bytes s=1;
+  bytes dskShare=2;
+  repeated bytes recPolyEval = 3;
 }
 
-message vssEcho{
+message PiVcomMerkle{
+  repeated bytes path = 1;
+  repeated int64 indicator = 2;
+}
+
+message PiRec{
+  bytes Cdk=1;
+  bytes wdki=2;
+  repeated bytes Crec=3;
+  repeated bytes weval=4;
+}
+
+message piInShare{
+  bytes Gs=1;
+  bytes Cvss=2;
+  bytes wvssi=3;
+  bytes Cz=4;
+  bytes wz0 = 5;
+  bytes Cvcom=6;
+  PiVcomMerkle piVcom=7;
+  PiRec piRec=8;
+}
+
+message wpAcssShare{
+  vInShare v = 1;
+  piInShare p = 2;
+}
+
+message wpAcssEcho{
   bytes sigshare = 1;
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 
 	m "github.com/cbergoon/merkletree"
+	"github.com/opDPSSTeam/DPSS/pkg/utils"
 )
 
 // implement of m.Content
@@ -36,6 +37,11 @@ type MerkleTree struct {
 	contents []m.Content
 }
 
+type PiVcomMerkle struct {
+	Path      [][]byte
+	Indicator []int64
+}
+
 //NewMerkleTree generates a merkletree
 func NewMerkleTree(data [][]byte) (*MerkleTree, error) {
 	contents := []m.Content{}
@@ -58,13 +64,40 @@ func (t *MerkleTree) GetMerkleTreeRoot() []byte {
 	return t.mktree.MerkleRoot()
 }
 
-//GetMerkleTreeProof returns a vector commitment
+//GetMerkleTreeProof returns a Path and indicator as proof
 func (t *MerkleTree) GetMerkleTreeProof(id int) ([][]byte, []int64) {
 	path, indicator, _ := t.mktree.GetMerklePath(t.contents[id])
 	return path, indicator
 }
 
-//VerifyMerkleTreeProof returns a vector commitment
+//GetMerkleTreeProofPi returns a PiVcom as proof
+func (t *MerkleTree) GetMerkleTreeProofPi(id int) PiVcomMerkle {
+	path, indicator, _ := t.mktree.GetMerklePath(t.contents[id])
+	return PiVcomMerkle{Path: path, Indicator: indicator}
+}
+
+// func (t *MerkleTree) PiVcomToBytes(pi PiVcomMerkle) []byte {
+// 	var buf bytes.Buffer
+// 	for _, p := range pi.Path {
+// 		buf.Write(p)
+// 	}
+// 	for _, i := range pi.Indicator {
+// 		buf.Write(utils.Uint64ToBytes(uint64(i)))
+// 	}
+// 	return buf.Bytes()
+// }
+
+func (t *MerkleTree) BytesToPiVcom(b []byte) PiVcomMerkle {
+	pi := PiVcomMerkle{Path: [][]byte{}, Indicator: []int64{}}
+	for i := 0; i < len(b); i += 32 {
+		pi.Path = append(pi.Path, b[i:i+32])
+	}
+	for i := len(b) / 32; i < len(b); i += 8 {
+		pi.Indicator = append(pi.Indicator, int64(utils.BytesToUint64(b[i:i+8])))
+	}
+	return pi
+}
+
 func VerifyMerkleTreeProof(root []byte, proof [][]byte, indicator []int64, msg []byte) bool {
 	if len(proof) != len(indicator) {
 		return false
@@ -82,4 +115,12 @@ func VerifyMerkleTreeProof(root []byte, proof [][]byte, indicator []int64, msg [
 		itHash = s.Sum(nil)
 	}
 	return bytes.Equal(itHash, root)
+}
+
+func i64tob(val uint64) []byte {
+	r := make([]byte, 8)
+	for i := 0; i < 8; i++ {
+		r[i] = byte((val >> (8 * i)) & 0xff)
+	}
+	return r
 }
