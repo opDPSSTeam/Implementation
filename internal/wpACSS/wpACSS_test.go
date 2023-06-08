@@ -2,10 +2,15 @@ package wpACSS
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 
+	kyberbls "github.com/drand/kyber-bls12381"
+	blsSig "github.com/drand/kyber/sign/bls"
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/party"
+	"github.com/opDPSSTeam/DPSS/internal/polyring"
 )
 
 func TestGenRecPoly(t *testing.T) {
@@ -53,6 +58,38 @@ func TestShare(t *testing.T) {
 	ID := []byte("testShare")
 	current := true
 
-	wpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
-	wpAcssShareEcho(p[0], ID)
+	shares := make([]bls.Fr, N)
+	pos := make([]bls.Fr, N)
+
+	//let p[0] be the dealer
+	go func() {
+		md, sigd := wpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
+
+		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
+		vrfySig := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
+		fmt.Printf("vrfySig: %v\n", vrfySig)
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(int(N))
+
+	for i := uint32(0); i < N; i++ {
+		go func(i uint32) {
+			vShare, _, err := wpAcssShareEcho(p[i], ID)
+			if err != nil {
+				fmt.Printf("error: %v\n", err)
+				wg.Done()
+			} else {
+				shares[i] = vShare.s
+				wg.Done()
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	for i := uint32(0); i < F+1; i++ {
+		bls.AsFr(&pos[i], uint64(i+1))
+	}
+	poly := polyring.LagrangeInterpolate(F, pos[:F+2], shares[:F+2])
+	fmt.Println("poly: ", party.PolyToString(poly))
 }
