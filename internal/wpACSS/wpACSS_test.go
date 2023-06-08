@@ -61,17 +61,21 @@ func TestShare(t *testing.T) {
 	shares := make([]bls.Fr, N)
 	pos := make([]bls.Fr, N)
 
+	var wg sync.WaitGroup
+	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
 		md, sigd := wpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
 
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
-		vrfySig := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
-		fmt.Printf("vrfySig: %v\n", vrfySig)
+		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
+		if err != nil {
+			fmt.Printf("error: %v\n", err)
+		} else {
+			fmt.Println("Verify full signature ok")
+		}
+		wg.Done()
 	}()
-
-	var wg sync.WaitGroup
-	wg.Add(int(N))
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {

@@ -248,16 +248,20 @@ func wpAcssShareEcho(p *party.HonestParty, ID []byte) (vShare, piShare, error) {
 
 	sigShare, _ := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite()).Sign(p.SigSK, md)
 
+	var echoMsg = new(protobuf.WpAcssEcho)
+	echoMsg.Sigshare = sigShare
+	data, _ := proto.Marshal(echoMsg)
+
 	err = p.Send(&protobuf.Message{
-		Type:   "wpAcssShareEcho",
+		Type:   "wpAcssEcho",
 		Id:     ID,
 		Sender: p.PID,
-		Data:   sigShare,
+		Data:   data,
 	}, senderID)
 	if err != nil {
-		fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssShareEcho error: %v\n", p.PID, err)
+		fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssEcho error: %v\n", p.PID, err)
 	} else {
-		fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssShareEcho done\n", p.PID)
+		fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssEcho done\n", p.PID)
 	}
 	return *vDec, *pDec, nil
 }
