@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	kyberbls "github.com/drand/kyber-bls12381"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/drand/kyber/sign/tbls"
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/dprf"
 	"github.com/opDPSSTeam/DPSS/internal/party"
@@ -11,7 +15,6 @@ import (
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
-	"google.golang.org/protobuf/proto"
 )
 
 type PiRec struct {
@@ -138,39 +141,37 @@ func wpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 		tmpV = newVShare(shares[i+1], dskShare[i], PolyEval)
 		tmpP = newPiShare(Gs, *Cvss, witnesses[i+1], *Cz, wz0, Cvcom, piVcom, piRec[i])
 		data := EncapsulateWpAcssSend(tmpV, tmpP)
-		fmt.Printf("[wpACSS.Share] Client send wpAcssShare done for i=%d\n", i)
+		err := p.Send(&protobuf.Message{
+			Type:   "wpAcssShare",
+			Id:     ID,
+			Sender: p.PID,
+			Data:   data,
+		}, p.PID) //FIXME: temporarily send to itself for test
+		if err != nil {
+			fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssShare error: %v\n", p.PID, err)
+		} else {
+			fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssShare done for i=%d\n", p.PID, i)
+		}
+	}
 
+	//this block is to verify the correctness of Encapsulate and Decapsulate messages
+	/*
 		var wpAcssMsg protobuf.WpAcssShare
 		err := proto.Unmarshal(data, &wpAcssMsg)
 		if err != nil {
 			fmt.Printf("[wpACSS.Share] Client send wpAcssShare error: %v\n", err)
 		}
+
 		vDec, pDec := DecapsulateWpAcssSend(&wpAcssMsg)
+		fmt.Println("=======tmpV=======")
+		printVShare(tmpV)
+		fmt.Println("=======vDec=======")
+		printVShare(vDec)
 
-		//this block is to verify the correctness of Encapsulate and Decapsulate messages
-		/* 		fmt.Println("=======tmpV=======")
-		   		printVShare(tmpV)
-		   		fmt.Println("=======vDec=======")
-		   		printVShare(vDec)
-
-		   		fmt.Println("=======tmpP=======")
-		   		printPiShare(tmpP)
-		   		fmt.Println("=======pDec=======")
-		   		printPiShare(pDec) */
-
-		// err := p.Send(&protobuf.Message{
-		// 	Type:   "wpAcssShare",
-		// 	Id:     ID,
-		// 	Sender: p.PID,
-		// 	Data:   data,
-		// }, uint32(i))
-		// if err != nil {
-		// 	fmt.Printf("[wpACSS.Share] Client send wpAcssShare error: %v\n", err)
-		// }
-		// tmpV.s = shares[i+1]
-		// tmpV.dskShare = dskShare[i]
-		// tmpV.recPolyEval = polyPhi[i]
-	}
+		fmt.Println("=======tmpP=======")
+		printPiShare(tmpP)
+		fmt.Println("=======pDec=======")
+		printPiShare(pDec) */
 
 	//valueMessage := core.Encapsulation("Value", ID, p.PID, &protobuf.Value{
 	//	Value:      secret,
@@ -212,6 +213,67 @@ func wpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 	// 		}
 	// 	}
 	// }
+}
+
+func wpAcssShareEcho(p *party.HonestParty, ID []byte) {
+	m := <-p.GetMessage("wpAcssShare", ID)
+
+	var wpAcssMsg protobuf.WpAcssShare
+	err := proto.Unmarshal(m.Data, &wpAcssMsg)
+	if err != nil {
+		fmt.Printf("[wpACSS.Share] Client send wpAcssShare error: %v\n", err)
+	}
+
+	//TODO: store vDec and pDec
+	_, _, mdPartial, isValid := DecapAndVrfyWpAcssSend(p, &wpAcssMsg)
+	if !isValid {
+		return
+	}
+
+	senderID := m.Sender
+	var md []byte
+
+	// md = ID||d||g^s||Cvss||Cvcom||Cdk||Crec[k]_k=0^3
+	//    = ID||d||mdPartial
+	md = append([]byte(ID), utils.Uint32ToBytes(senderID)...)
+	md = append(md, mdPartial...)
+
+	sigShare, _ := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite()).Sign(p.SigSK, md)
+
+	err = p.Send(&protobuf.Message{
+		Type:   "wpAcssShareEcho",
+		Id:     ID,
+		Sender: p.PID,
+		Data:   sigShare,
+	}, senderID)
+	if err != nil {
+		fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssShareEcho error: %v\n", p.PID, err)
+	} else {
+		fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssShareEcho done\n", p.PID)
+	}
+
+}
+
+func VerifyWpAcssSend(p *party.HonestParty, vDec *vShare, pDec *piShare) bool {
+	var tmpG1 bls.G1Point
+	bls.AddG1(&tmpG1, &pDec.Gs, &pDec.Cz)
+	if !bls.EqualG1(&pDec.Cvss, &tmpG1) {
+		fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: Cvss != Gs*Cz\n")
+		return false
+	}
+	if !p.KZG.CheckProofSingle(&pDec.Cz, &pDec.wz0, &bls.ZERO, &bls.ZERO) {
+		fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: wz0 proof failed\n")
+		return false
+	}
+	var Gsi bls.G1Point
+	bls.MulG1(&Gsi, &bls.GenG1, &vDec.s)
+
+	if !vectorcommitment.VerifyMerkleTreeProof(pDec.Cvcom, pDec.piVcom.Path, pDec.piVcom.Indicator, []byte(Gsi.String())) {
+		fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: piVcom proof failed\n")
+		return false
+	}
+
+	return true
 }
 
 func GenRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr, []PiRec) {
@@ -315,8 +377,9 @@ func EncapsulateWpAcssSend(v *vShare, pi *piShare) []byte {
 	return data
 }
 
-func DecapsulateWpAcssSend(m *protobuf.WpAcssShare) (*vShare, *piShare) {
-
+//DecapAndVrfyWpAcssSend decapsulates the message and then verifies its correctness. It also returns a mdPartial value that is used in threshold signature.
+func DecapAndVrfyWpAcssSend(p *party.HonestParty, m *protobuf.WpAcssShare) (*vShare, *piShare, []byte, bool) {
+	var mdPartial []byte
 	//decapsulate v
 	vDec := new(vShare)
 
@@ -376,5 +439,20 @@ func DecapsulateWpAcssSend(m *protobuf.WpAcssShare) (*vShare, *piShare) {
 		bls.CopyG1(&piDec.piRec.weval[i], wevalRaw)
 	}
 
-	return vDec, piDec
+	isValid := VerifyWpAcssSend(p, vDec, piDec)
+	if isValid {
+		// mdPartial = g^s||Cvss||Cvcom||Cdk||Crec[0...3]
+		mdPartial = append([]byte{}, m.P.Gs...)
+		mdPartial = append(mdPartial, m.P.Cvss...)
+		mdPartial = append(mdPartial, m.P.Cvcom...)
+		mdPartial = append(mdPartial, m.P.PiRec.Cdk...)
+		mdPartial = append(mdPartial, m.P.PiRec.Crec[0]...)
+		mdPartial = append(mdPartial, m.P.PiRec.Crec[1]...)
+		mdPartial = append(mdPartial, m.P.PiRec.Crec[2]...)
+		mdPartial = append(mdPartial, m.P.PiRec.Crec[3]...)
+	} else {
+		mdPartial = []byte{}
+	}
+
+	return vDec, piDec, mdPartial, isValid
 }

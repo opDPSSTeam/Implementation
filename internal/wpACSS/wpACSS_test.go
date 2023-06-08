@@ -33,7 +33,19 @@ func TestShare(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
-	p := party.NewHonestParty(0, N, F, N, ipList, portList, ipListNext, portListNext, pk, sk[2*F+1])
+
+	var p []*party.HonestParty = make([]*party.HonestParty, N)
+	for i := uint32(0); i < N; i++ {
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, ipListNext, portListNext, pk, sk[i])
+	}
+
+	for i := uint32(0); i < N; i++ {
+		p[i].InitReceiveChannel()
+	}
+
+	for i := uint32(0); i < N; i++ {
+		p[i].InitSendChannel()
+	}
 
 	var secret bls.Fr
 	bls.AsFr(&secret, uint64(12345))
@@ -41,5 +53,6 @@ func TestShare(t *testing.T) {
 	ID := []byte("testShare")
 	current := true
 
-	wpAcssShareSend(ctx, p, ID, current, F, N, secret)
+	wpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
+	wpAcssShareEcho(p[0], ID)
 }

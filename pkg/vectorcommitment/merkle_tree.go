@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 
 	m "github.com/cbergoon/merkletree"
-	"github.com/opDPSSTeam/DPSS/pkg/utils"
 )
 
 // implement of m.Content
@@ -74,28 +73,6 @@ func (t *MerkleTree) GetMerkleTreeProof(id int) ([][]byte, []int64) {
 func (t *MerkleTree) GetMerkleTreeProofPi(id int) PiVcomMerkle {
 	path, indicator, _ := t.mktree.GetMerklePath(t.contents[id])
 	return PiVcomMerkle{Path: path, Indicator: indicator}
-}
-
-// func (t *MerkleTree) PiVcomToBytes(pi PiVcomMerkle) []byte {
-// 	var buf bytes.Buffer
-// 	for _, p := range pi.Path {
-// 		buf.Write(p)
-// 	}
-// 	for _, i := range pi.Indicator {
-// 		buf.Write(utils.Uint64ToBytes(uint64(i)))
-// 	}
-// 	return buf.Bytes()
-// }
-
-func (t *MerkleTree) BytesToPiVcom(b []byte) PiVcomMerkle {
-	pi := PiVcomMerkle{Path: [][]byte{}, Indicator: []int64{}}
-	for i := 0; i < len(b); i += 32 {
-		pi.Path = append(pi.Path, b[i:i+32])
-	}
-	for i := len(b) / 32; i < len(b); i += 8 {
-		pi.Indicator = append(pi.Indicator, int64(utils.BytesToUint64(b[i:i+8])))
-	}
-	return pi
 }
 
 func VerifyMerkleTreeProof(root []byte, proof [][]byte, indicator []int64, msg []byte) bool {
