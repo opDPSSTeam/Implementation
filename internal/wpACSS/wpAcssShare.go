@@ -18,73 +18,6 @@ import (
 	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
 )
 
-type PiRec struct {
-	Cdk   bls.G1Point
-	wdki  bls.G1Point
-	Crec  []bls.G1Point
-	weval []bls.G1Point
-}
-
-// func printPiRec(pi *PiRec) {
-// 	fmt.Println("Cdk: ", pi.Cdk.String())
-// 	fmt.Println("wdki: ", pi.wdki.String())
-// 	for i := 0; i < len(pi.Crec); i++ {
-// 		fmt.Println("Crec: ", pi.Crec[i].String())
-// 	}
-// 	for i := 0; i < len(pi.weval); i++ {
-// 		fmt.Println("weval: ", pi.weval[i].String())
-// 	}
-// }
-
-type vShare struct {
-	s           bls.Fr
-	dskShare    bls.Fr
-	recPolyEval []bls.Fr
-}
-
-func newVShare(s bls.Fr, dskShare bls.Fr, recPolyEval []bls.Fr) *vShare {
-	return &vShare{s, dskShare, recPolyEval}
-}
-
-// func printVShare(v *vShare) {
-// 	fmt.Println("s: ", v.s.String())
-// 	fmt.Println("dskShare: ", v.dskShare.String())
-// 	for i := 0; i < len(v.recPolyEval); i++ {
-// 		fmt.Println("recPolyEval: ", v.recPolyEval[i].String())
-// 	}
-// }
-
-type piShare struct {
-	Gs     bls.G1Point
-	Cvss   bls.G1Point
-	wvssi  bls.G1Point
-	Cz     bls.G1Point
-	wz0    bls.G1Point
-	Cvcom  []byte
-	piVcom vectorcommitment.PiVcomMerkle
-	piRec  PiRec
-}
-
-func newPiShare(Gs bls.G1Point, Cvss bls.G1Point, wvssi bls.G1Point, Cz bls.G1Point, wz0 bls.G1Point, Cvcom []byte, piVcom vectorcommitment.PiVcomMerkle, piRec PiRec) *piShare {
-	return &piShare{Gs, Cvss, wvssi, Cz, wz0, Cvcom, piVcom, piRec}
-}
-
-// func printPiShare(p *piShare) {
-// 	fmt.Println("Gs: ", p.Gs.String())
-// 	fmt.Println("Cvss: ", p.Cvss.String())
-// 	fmt.Println("wvssi: ", p.wvssi.String())
-// 	fmt.Println("Cz: ", p.Cz.String())
-// 	fmt.Println("wz0: ", p.wz0.String())
-// 	fmt.Println("Cvcom: ", string(p.Cvcom))
-// 	for i := 0; i < len(p.piVcom.Indicator); i++ {
-// 		fmt.Printf("Indicator[%d]: %d", i, p.piVcom.Indicator[i])
-// 	}
-// 	for i := 0; i < len(p.piVcom.Path); i++ {
-// 		fmt.Printf("Path[%d]: %s", i, string(p.piVcom.Path[i]))
-// 	}
-// 	printPiRec(&p.piRec)
-// }
-
 // wpAcssShare shares the secret to the other parties, and returns a message md and a signature on md
 // Assuming KZG setup has done, and public parameters are available
 func wpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current bool, F uint32, N uint32, secret bls.Fr) ([]byte, []byte) {
@@ -101,14 +34,9 @@ func wpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 	copy(polyZ, polyF)
 	bls.CopyFr(&polyZ[0], &bls.ZERO)
 
-	//commit to polyZ
 	p.MutexKZG.Lock()
-	Cz := p.KZG.CommitToPoly(polyZ)
-	p.MutexKZG.Unlock()
-
-	//witness to Z(0)
-	p.MutexKZG.Lock()
-	wz0 := *p.KZG.ComputeProofSingle(polyZ, bls.ZERO)
+	Cz := p.KZG.CommitToPoly(polyZ)                   //commit to polyZ
+	wz0 := *p.KZG.ComputeProofSingle(polyZ, bls.ZERO) //witness to Z(0)
 	p.MutexKZG.Unlock()
 
 	//generate recovery polynomials, polyPhi includes ell=4 polynomials
@@ -127,8 +55,8 @@ func wpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 	tre, _ := vectorcommitment.NewMerkleTree(vgBytes)
 	Cvcom := tre.GetMerkleTreeRoot()
 
-	var tmpV *vShare
-	var tmpP *piShare
+	var tmpV *party.VShare
+	var tmpP *party.PiShare
 	var data, mdPartial []byte
 	var FLGmdEncoded bool = false
 	for i := 0; uint32(i) < N; i++ {
@@ -136,13 +64,13 @@ func wpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 
 		var PolyEval = make([]bls.Fr, 4)
 		var tmpPos bls.Fr
-		bls.AsFr(&tmpPos, uint64(i))
+		bls.AsFr(&tmpPos, uint64(i+1))
 		for j := 0; j < 4; j++ {
 			bls.EvalPolyAt(&PolyEval[j], polyPhi[j], &tmpPos)
 		}
 
-		tmpV = newVShare(shares[i+1], dskShare[i], PolyEval)
-		tmpP = newPiShare(Gs, *Cvss, witnesses[i+1], *Cz, wz0, Cvcom, piVcom, piRec[i])
+		tmpV = party.NewVShare(shares[i+1], dskShare[i], PolyEval)
+		tmpP = party.NewPiShare(Gs, *Cvss, witnesses[i+1], *Cz, wz0, Cvcom, piVcom, piRec[i])
 		if i == 0 {
 			data, mdPartial = EncapsulateWpAcssSend(tmpV, tmpP, FLGmdEncoded)
 			FLGmdEncoded = true
@@ -223,7 +151,7 @@ func wpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 }
 
 //wpAcssShareEcho handles the wpAcssShare message from other parties, and returns a value-proof tuple (v, pi)
-func wpAcssShareEcho(p *party.HonestParty, ID []byte) (vShare, piShare, error) {
+func wpAcssShareEcho(p *party.HonestParty, ID []byte) (party.VShare, party.PiShare, error) {
 	m := <-p.GetMessage("wpAcssShare", ID)
 
 	var wpAcssMsg protobuf.WpAcssShare
@@ -235,7 +163,7 @@ func wpAcssShareEcho(p *party.HonestParty, ID []byte) (vShare, piShare, error) {
 
 	vDec, pDec, mdPartial, isValid := DecapAndVrfyWpAcssSend(p, &wpAcssMsg)
 	if !isValid {
-		return vShare{}, piShare{}, errors.New("invalid wpAcssShare")
+		return party.VShare{}, party.PiShare{}, errors.New("invalid wpAcssShare")
 	}
 
 	senderID := m.Sender
@@ -263,24 +191,25 @@ func wpAcssShareEcho(p *party.HonestParty, ID []byte) (vShare, piShare, error) {
 	} else {
 		fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssEcho done\n", p.PID)
 	}
+	p.SetVPTuples(vDec, pDec, senderID)
 	return *vDec, *pDec, nil
 }
 
-func VerifyWpAcssSend(p *party.HonestParty, vDec *vShare, pDec *piShare) bool {
+func VerifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiShare) bool {
 	var tmpG1 bls.G1Point
 	bls.AddG1(&tmpG1, &pDec.Gs, &pDec.Cz)
 	if !bls.EqualG1(&pDec.Cvss, &tmpG1) {
 		fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: Cvss != Gs*Cz\n")
 		return false
 	}
-	if !p.KZG.CheckProofSingle(&pDec.Cz, &pDec.wz0, &bls.ZERO, &bls.ZERO) {
+	if !p.KZG.CheckProofSingle(&pDec.Cz, &pDec.Wz0, &bls.ZERO, &bls.ZERO) {
 		fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: wz0 proof failed\n")
 		return false
 	}
 	var Gsi bls.G1Point
-	bls.MulG1(&Gsi, &bls.GenG1, &vDec.s)
+	bls.MulG1(&Gsi, &bls.GenG1, &vDec.S)
 
-	if !vectorcommitment.VerifyMerkleTreeProof(pDec.Cvcom, pDec.piVcom.Path, pDec.piVcom.Indicator, []byte(Gsi.String())) {
+	if !vectorcommitment.VerifyMerkleTreeProof(pDec.Cvcom, pDec.PiVcom.Path, pDec.PiVcom.Indicator, []byte(Gsi.String())) {
 		fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: piVcom proof failed\n")
 		return false
 	}
@@ -288,7 +217,7 @@ func VerifyWpAcssSend(p *party.HonestParty, vDec *vShare, pDec *piShare) bool {
 	return true
 }
 
-func GenRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr, []PiRec) {
+func GenRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr, []party.PiRec) {
 	dsk, _, Cdk, dskShare, _, wdk := dprf.InitDPRF(p, f, n)
 	y := make([]bls.Fr, n)
 	I := make([]bls.Fr, n)
@@ -297,10 +226,10 @@ func GenRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr,
 	poly := make([][]bls.Fr, ell) //phi_k(x), k = 1, ..., ell
 	Crec := make([]*bls.G1Point, ell)
 	weval := make([][]bls.G1Point, ell)
-	piRec := make([]PiRec, n)
+	piRec := make([]party.PiRec, n)
 	for i := uint32(0); i < n; i++ {
 		piRec[i].Crec = make([]bls.G1Point, ell)
-		piRec[i].weval = make([]bls.G1Point, ell)
+		piRec[i].Weval = make([]bls.G1Point, ell)
 	}
 
 	for i := uint32(0); i < n; i++ {
@@ -341,48 +270,48 @@ func GenRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr,
 
 	for i := uint32(0); i < n; i++ {
 		bls.CopyG1(&piRec[i].Cdk, Cdk)
-		bls.CopyG1(&piRec[i].wdki, &wdk[i])
+		bls.CopyG1(&piRec[i].Wdki, &wdk[i])
 		for k := uint32(0); k < ell; k++ {
 			bls.CopyG1(&piRec[i].Crec[k], Crec[k])
-			bls.CopyG1(&piRec[i].weval[k], &weval[k][i])
+			bls.CopyG1(&piRec[i].Weval[k], &weval[k][i])
 		}
 	}
 	return dskShare, poly, piRec
 }
 
-func EncapsulateWpAcssSend(v *vShare, pi *piShare, FLGmdEncoded bool) ([]byte, []byte) {
+func EncapsulateWpAcssSend(v *party.VShare, pi *party.PiShare, FLGmdEncoded bool) ([]byte, []byte) {
 	var msg = new(protobuf.WpAcssShare)
 	msg.V = new(protobuf.VInShare)
 	msg.P = new(protobuf.PiInShare)
 
-	msg.V.S = []byte(v.s.String())
-	msg.V.DskShare = []byte(v.dskShare.String())
-	msg.V.RecPolyEval = make([][]byte, len(v.recPolyEval))
-	for i := 0; i < len(v.recPolyEval); i++ {
-		msg.V.RecPolyEval[i] = []byte(v.recPolyEval[i].String())
+	msg.V.S = []byte(v.S.String())
+	msg.V.DskShare = []byte(v.DskShare.String())
+	msg.V.RecPolyEval = make([][]byte, len(v.RecPolyEval))
+	for i := 0; i < len(v.RecPolyEval); i++ {
+		msg.V.RecPolyEval[i] = []byte(v.RecPolyEval[i].String())
 	}
 
 	msg.P.Gs = bls.ToCompressedG1(&pi.Gs)
 	msg.P.Cvss = bls.ToCompressedG1(&pi.Cvss)
-	msg.P.Wvssi = bls.ToCompressedG1(&pi.wvssi)
+	msg.P.Wvssi = bls.ToCompressedG1(&pi.Wvssi)
 	msg.P.Cz = bls.ToCompressedG1(&pi.Cz)
-	msg.P.Wz0 = bls.ToCompressedG1(&pi.wz0)
+	msg.P.Wz0 = bls.ToCompressedG1(&pi.Wz0)
 	msg.P.Cvcom = append([]byte{}, pi.Cvcom...)
 
 	msg.P.PiVcom = new(protobuf.PiVcomMerkle)
-	for i := 0; i < len(pi.piVcom.Indicator); i++ {
-		msg.P.PiVcom.Indicator = append(msg.P.PiVcom.Indicator, pi.piVcom.Indicator[i])
-		msg.P.PiVcom.Path = append(msg.P.PiVcom.Path, pi.piVcom.Path[i])
+	for i := 0; i < len(pi.PiVcom.Indicator); i++ {
+		msg.P.PiVcom.Indicator = append(msg.P.PiVcom.Indicator, pi.PiVcom.Indicator[i])
+		msg.P.PiVcom.Path = append(msg.P.PiVcom.Path, pi.PiVcom.Path[i])
 	}
 
 	msg.P.PiRec = new(protobuf.PiRec)
-	msg.P.PiRec.Cdk = bls.ToCompressedG1(&pi.piRec.Cdk)
-	msg.P.PiRec.Wdki = bls.ToCompressedG1(&pi.piRec.wdki)
-	msg.P.PiRec.Crec = make([][]byte, len(pi.piRec.Crec))
-	msg.P.PiRec.Weval = make([][]byte, len(pi.piRec.weval))
-	for i := 0; i < len(pi.piRec.Crec); i++ {
-		msg.P.PiRec.Crec[i] = bls.ToCompressedG1(&pi.piRec.Crec[i])
-		msg.P.PiRec.Weval[i] = bls.ToCompressedG1(&pi.piRec.weval[i])
+	msg.P.PiRec.Cdk = bls.ToCompressedG1(&pi.PiRec.Cdk)
+	msg.P.PiRec.Wdki = bls.ToCompressedG1(&pi.PiRec.Wdki)
+	msg.P.PiRec.Crec = make([][]byte, len(pi.PiRec.Crec))
+	msg.P.PiRec.Weval = make([][]byte, len(pi.PiRec.Weval))
+	for i := 0; i < len(pi.PiRec.Crec); i++ {
+		msg.P.PiRec.Crec[i] = bls.ToCompressedG1(&pi.PiRec.Crec[i])
+		msg.P.PiRec.Weval[i] = bls.ToCompressedG1(&pi.PiRec.Weval[i])
 	}
 	var mdPartial []byte
 	if !FLGmdEncoded {
@@ -403,28 +332,28 @@ func EncapsulateWpAcssSend(v *vShare, pi *piShare, FLGmdEncoded bool) ([]byte, [
 }
 
 //DecapAndVrfyWpAcssSend decapsulates the message and then verifies its correctness. It also returns a mdPartial value that is used in threshold signature.
-func DecapAndVrfyWpAcssSend(p *party.HonestParty, m *protobuf.WpAcssShare) (*vShare, *piShare, []byte, bool) {
+func DecapAndVrfyWpAcssSend(p *party.HonestParty, m *protobuf.WpAcssShare) (*party.VShare, *party.PiShare, []byte, bool) {
 	var mdPartial []byte
 	//decapsulate v
-	vDec := new(vShare)
+	vDec := new(party.VShare)
 
 	sRaw := new(bls.Fr)
 	bls.SetFr(sRaw, string(m.V.S))
-	bls.CopyFr(&vDec.s, sRaw)
+	bls.CopyFr(&vDec.S, sRaw)
 
 	dskShareRaw := new(bls.Fr)
 	bls.SetFr(dskShareRaw, string(m.V.DskShare))
-	bls.CopyFr(&vDec.dskShare, dskShareRaw)
+	bls.CopyFr(&vDec.DskShare, dskShareRaw)
 
-	vDec.recPolyEval = make([]bls.Fr, 4) //ell=4
+	vDec.RecPolyEval = make([]bls.Fr, 4) //ell=4
 	for i := 0; i < 4; i++ {
 		recPolyEvalRaw := new(bls.Fr)
 		bls.SetFr(recPolyEvalRaw, string(m.V.RecPolyEval[i]))
-		bls.CopyFr(&vDec.recPolyEval[i], recPolyEvalRaw)
+		bls.CopyFr(&vDec.RecPolyEval[i], recPolyEvalRaw)
 	}
 
 	//decapsulate pi
-	piDec := new(piShare)
+	piDec := new(party.PiShare)
 	GsRaw, _ := bls.FromCompressedG1(m.P.Gs)
 	bls.CopyG1(&piDec.Gs, GsRaw)
 
@@ -432,36 +361,36 @@ func DecapAndVrfyWpAcssSend(p *party.HonestParty, m *protobuf.WpAcssShare) (*vSh
 	bls.CopyG1(&piDec.Cvss, CvssRaw)
 
 	wvssiRaw, _ := bls.FromCompressedG1(m.P.Wvssi)
-	bls.CopyG1(&piDec.wvssi, wvssiRaw)
+	bls.CopyG1(&piDec.Wvssi, wvssiRaw)
 
 	CzRaw, _ := bls.FromCompressedG1(m.P.Cz)
 	bls.CopyG1(&piDec.Cz, CzRaw)
 
 	wz0Raw, _ := bls.FromCompressedG1(m.P.Wz0)
-	bls.CopyG1(&piDec.wz0, wz0Raw)
+	bls.CopyG1(&piDec.Wz0, wz0Raw)
 
 	piDec.Cvcom = append([]byte{}, m.P.Cvcom...)
 
-	piDec.piVcom.Path = make([][]byte, len(m.P.PiVcom.Path))
-	piDec.piVcom.Indicator = make([]int64, len(m.P.PiVcom.Indicator))
+	piDec.PiVcom.Path = make([][]byte, len(m.P.PiVcom.Path))
+	piDec.PiVcom.Indicator = make([]int64, len(m.P.PiVcom.Indicator))
 	for i := 0; i < len(m.P.PiVcom.Path); i++ {
-		piDec.piVcom.Path[i] = append([]byte{}, m.P.PiVcom.Path[i]...)
-		piDec.piVcom.Indicator[i] = m.P.PiVcom.Indicator[i]
+		piDec.PiVcom.Path[i] = append([]byte{}, m.P.PiVcom.Path[i]...)
+		piDec.PiVcom.Indicator[i] = m.P.PiVcom.Indicator[i]
 	}
 
 	CdkRaw, _ := bls.FromCompressedG1(m.P.PiRec.Cdk)
-	bls.CopyG1(&piDec.piRec.Cdk, CdkRaw)
+	bls.CopyG1(&piDec.PiRec.Cdk, CdkRaw)
 
 	wdkiRaw, _ := bls.FromCompressedG1(m.P.PiRec.Wdki)
-	bls.CopyG1(&piDec.piRec.wdki, wdkiRaw)
+	bls.CopyG1(&piDec.PiRec.Wdki, wdkiRaw)
 
-	piDec.piRec.Crec = make([]bls.G1Point, len(m.P.PiRec.Crec))
-	piDec.piRec.weval = make([]bls.G1Point, len(m.P.PiRec.Weval))
+	piDec.PiRec.Crec = make([]bls.G1Point, len(m.P.PiRec.Crec))
+	piDec.PiRec.Weval = make([]bls.G1Point, len(m.P.PiRec.Weval))
 	for i := 0; i < len(m.P.PiRec.Crec); i++ {
 		CrecRaw, _ := bls.FromCompressedG1(m.P.PiRec.Crec[i])
-		bls.CopyG1(&piDec.piRec.Crec[i], CrecRaw)
+		bls.CopyG1(&piDec.PiRec.Crec[i], CrecRaw)
 		wevalRaw, _ := bls.FromCompressedG1(m.P.PiRec.Weval[i])
-		bls.CopyG1(&piDec.piRec.weval[i], wevalRaw)
+		bls.CopyG1(&piDec.PiRec.Weval[i], wevalRaw)
 	}
 
 	isValid := VerifyWpAcssSend(p, vDec, piDec)

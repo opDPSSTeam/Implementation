@@ -141,3 +141,8 @@ message wpAcssShare{
 message wpAcssEcho{
   bytes sigshare = 1;
 }
+
+message wpAcssCallHelp{
+  uint32 caller = 1;
+  repeated uint32 indices = 2;
+}

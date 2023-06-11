@@ -10,6 +10,7 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/polycommit"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
+	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
 )
 
 //Party is a interface of consensus parties
@@ -17,6 +18,83 @@ type Party interface {
 	send(m *protobuf.Message, des uint32) error
 	broadcast(m *protobuf.Message) error
 	getMessageWithType(messageType string) (*protobuf.Message, error)
+}
+
+type PiRec struct {
+	Cdk   bls.G1Point
+	Wdki  bls.G1Point
+	Crec  []bls.G1Point
+	Weval []bls.G1Point
+}
+
+// func printPiRec(pi *PiRec) {
+// 	fmt.Println("Cdk: ", pi.Cdk.String())
+// 	fmt.Println("wdki: ", pi.wdki.String())
+// 	for i := 0; i < len(pi.Crec); i++ {
+// 		fmt.Println("Crec: ", pi.Crec[i].String())
+// 	}
+// 	for i := 0; i < len(pi.weval); i++ {
+// 		fmt.Println("weval: ", pi.weval[i].String())
+// 	}
+// }
+
+type VShare struct {
+	S           bls.Fr
+	DskShare    bls.Fr
+	RecPolyEval []bls.Fr
+}
+
+func NewVShare(s bls.Fr, dskShare bls.Fr, recPolyEval []bls.Fr) *VShare {
+	return &VShare{s, dskShare, recPolyEval}
+}
+
+// func printVShare(v *vShare) {
+// 	fmt.Println("s: ", v.s.String())
+// 	fmt.Println("dskShare: ", v.dskShare.String())
+// 	for i := 0; i < len(v.recPolyEval); i++ {
+// 		fmt.Println("recPolyEval: ", v.recPolyEval[i].String())
+// 	}
+// }
+
+type PiShare struct {
+	Gs     bls.G1Point
+	Cvss   bls.G1Point
+	Wvssi  bls.G1Point
+	Cz     bls.G1Point
+	Wz0    bls.G1Point
+	Cvcom  []byte
+	PiVcom vectorcommitment.PiVcomMerkle
+	PiRec  PiRec
+}
+
+func NewPiShare(Gs bls.G1Point, Cvss bls.G1Point, wvssi bls.G1Point, Cz bls.G1Point, wz0 bls.G1Point, Cvcom []byte, piVcom vectorcommitment.PiVcomMerkle, piRec PiRec) *PiShare {
+	return &PiShare{Gs, Cvss, wvssi, Cz, wz0, Cvcom, piVcom, piRec}
+}
+
+// func printPiShare(p *piShare) {
+// 	fmt.Println("Gs: ", p.Gs.String())
+// 	fmt.Println("Cvss: ", p.Cvss.String())
+// 	fmt.Println("wvssi: ", p.wvssi.String())
+// 	fmt.Println("Cz: ", p.Cz.String())
+// 	fmt.Println("wz0: ", p.wz0.String())
+// 	fmt.Println("Cvcom: ", string(p.Cvcom))
+// 	for i := 0; i < len(p.piVcom.Indicator); i++ {
+// 		fmt.Printf("Indicator[%d]: %d", i, p.piVcom.Indicator[i])
+// 	}
+// 	for i := 0; i < len(p.piVcom.Path); i++ {
+// 		fmt.Printf("Path[%d]: %s", i, string(p.piVcom.Path[i]))
+// 	}
+// 	printPiRec(&p.piRec)
+// }
+
+type MsgSigTuple struct {
+	md  []byte
+	sig []byte
+}
+
+type VPiTuple struct {
+	v  VShare
+	pi PiShare
 }
 
 //HonestParty is a struct of honest consensus parties
@@ -38,7 +116,11 @@ type HonestParty struct {
 	KZG      *polycommit.KZGSettings
 	MutexKZG *sync.Mutex
 
-	share bls.Fr //share of this party
+	share       bls.Fr        //share of this party
+	DSKi        []bls.Fr      //dprf secret key shares
+	DVKi        []bls.G1Point //dprf verification key shares
+	ProofTuple  []MsgSigTuple //message-signature tuples from other nodes
+	shareTuples []VPiTuple    //v-pi tuples from other nodes
 
 	tblsScheme sign.ThresholdScheme
 	SigPK      *share.PubPoly  //tss pk
@@ -89,9 +171,31 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 		KZG:      KZG,
 		MutexKZG: &mutexKZG,
 
-		share: bls.ZERO,
+		share:       bls.ZERO,
+		DSKi:        make([]bls.Fr, N),
+		DVKi:        make([]bls.G1Point, N),
+		ProofTuple:  make([]MsgSigTuple, N),
+		shareTuples: make([]VPiTuple, N),
 
 		LagrangeCoefficients: LagrangeCoefficients,
 	}
 	return &p
+}
+
+func (p *HonestParty) SetVPTuples(v *VShare, pi *PiShare, dealerID uint32) {
+	p.shareTuples[dealerID].v = *v
+	p.shareTuples[dealerID].pi = *pi
+}
+
+func (p *HonestParty) GetVShare(index uint32) *VShare {
+	return &p.shareTuples[index].v
+}
+
+func (p *HonestParty) GetPiShare(index uint32) *PiShare {
+	return &p.shareTuples[index].pi
+}
+
+func (p *HonestParty) SetMsgSigTuples(md []byte, sig []byte, dealerID uint32) {
+	p.ProofTuple[dealerID].md = append([]byte{}, md...)
+	p.ProofTuple[dealerID].sig = append([]byte{}, sig...)
 }
