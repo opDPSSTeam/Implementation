@@ -6,6 +6,7 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/dprf"
 	"github.com/opDPSSTeam/DPSS/internal/party"
+	"github.com/opDPSSTeam/DPSS/internal/polyring"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 	"google.golang.org/protobuf/proto"
@@ -20,6 +21,8 @@ type PiHelp struct {
 }
 
 type RecCont struct {
+	dealerID     uint32
+	helperID     uint32
 	sMasked      bls.Fr
 	DPRFContribF bls.G1Point
 	piHelp       PiHelp
@@ -52,9 +55,176 @@ func CallHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 	}
 }
 
-// func Help(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint32) {
+func Help(p *party.HonestParty, ID []byte, F uint32, N uint32, callerID uint32, Shelp []uint32) {
 
-// }
+	res := make([]RecCont, len(Shelp))
+	var msg = new(protobuf.WpAcssHelp)
+	msg.Res = make([]*protobuf.RecCont, len(Shelp))
+	var isEmpty bool = true
+	for index, dealerID := range Shelp {
+		// only generate RecCont if received vpi tuples from dealerID
+		if p.IfReceivedVPiTuples(dealerID) {
+			isEmpty = false
+			v := p.GetVShare(dealerID)
+			pi := p.GetPiShare(dealerID)
+			res[index] = RecContrib(p, ID, F, dealerID, callerID, *v, *pi)
+
+			//encapsulate RecCont
+			msg.Res[index] = &protobuf.RecCont{
+				DealerID:     dealerID,
+				SMasked:      []byte(res[index].sMasked.String()),
+				DPRFContribF: bls.ToCompressedG1(&res[index].DPRFContribF),
+				PiHelp: &protobuf.PiHelp{
+					Gs:     bls.ToCompressedG1(&res[index].piHelp.Gs),
+					Cdk:    bls.ToCompressedG1(&res[index].piHelp.Cdk),
+					Cmask:  bls.ToCompressedG1(&res[index].piHelp.Cmask),
+					WiMask: bls.ToCompressedG1(&res[index].piHelp.wiMask),
+					PiDPRF: dprf.EncapsulatePiDPRF(&res[index].piHelp.piDPRF),
+				},
+			}
+		}
+	}
+
+	if !isEmpty {
+		data, err := proto.Marshal(msg)
+		if err != nil {
+			fmt.Printf("Error in marshal: %v\n", err)
+		}
+
+		p.Send(&protobuf.Message{
+			Type:   "WpAcssHelp",
+			Id:     ID,
+			Sender: p.PID,
+			Data:   data,
+		}, callerID)
+		fmt.Printf("[wpACSS.Recover] [Party %v] sends WpAcssHelp to Party %v\n", p.PID, callerID)
+	}
+
+}
+
+func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint32) map[uint32]bls.Fr {
+	var CdkCounterMap = make(map[bls.G1Point]int)          //the number of times Cdk appears in the received help messages
+	var CdkDealerMap = make(map[bls.G1Point]uint32)        //maps Cdk to the dealerID
+	var CdkHelperMap = make(map[bls.G1Point][]uint32)      //records the helpers' indexes for the same Cdk
+	var CdkSmaskMap = make(map[bls.G1Point][]bls.Fr)       //records the sMasked for the same Cdk
+	var CdkDPRFMap = make(map[bls.G1Point][]bls.G1Point)   //records the DPRFContribF for the same Cdk
+	var CdkPiDPRFMap = make(map[bls.G1Point][]dprf.PiDPRF) //records the PiDPRF for the same Cdk
+	var HelperResMap = make(map[uint32][]RecCont)          //maps helperID to the received RecConts
+	var SrecMap = make(map[uint32]bls.Fr)                  //maps dealerID to the recovered s_{d,i}
+
+	var recoveredCtr int = 0
+
+	for {
+		m := <-p.GetMessage("WpAcssHelp", ID)
+		res, err := DecapsulateRes(m, p.PID)
+		if err != nil {
+			continue
+		}
+		HelperResMap[m.Sender] = res
+
+		lenRes := len(res)
+		for i := 0; i < lenRes; i++ {
+			if !VrfyRecCont(p, ID, F, res[i]) {
+				continue //skip this message if verification fails
+			}
+		}
+		for i := 0; i < lenRes; i++ {
+			tmpCdk := res[i].piHelp.Cdk
+			_, ok1 := CdkCounterMap[tmpCdk]
+			// ok1 denotes the map of Cdk exists
+			if ok1 {
+				CdkCounterMap[tmpCdk]++
+				CdkHelperMap[tmpCdk] = append(CdkHelperMap[tmpCdk], m.Sender)
+				CdkSmaskMap[tmpCdk] = append(CdkSmaskMap[tmpCdk], res[i].sMasked)
+				CdkDPRFMap[tmpCdk] = append(CdkDPRFMap[tmpCdk], res[i].DPRFContribF)
+				CdkPiDPRFMap[tmpCdk] = append(CdkPiDPRFMap[tmpCdk], res[i].piHelp.piDPRF)
+			} else {
+				CdkCounterMap[tmpCdk] = 1
+				CdkHelperMap[tmpCdk] = []uint32{m.Sender}
+				CdkSmaskMap[tmpCdk] = []bls.Fr{res[i].sMasked}
+				CdkDealerMap[tmpCdk] = res[i].dealerID
+				CdkDPRFMap[tmpCdk] = []bls.G1Point{res[i].DPRFContribF}
+				CdkPiDPRFMap[tmpCdk] = []dprf.PiDPRF{res[i].piHelp.piDPRF}
+			}
+		}
+
+		var IdxList = make([]bls.Fr, F+1)
+		var yList = make([]bls.Fr, F+1)
+		var ContribList = make([]bls.G1Point, F+1)
+		var piDPRFList = make([]*dprf.PiDPRF, F+1)
+		// check if there exists a Cdk that appears more than F+1 times
+		for i := 0; i < lenRes; i++ {
+			tmpCdk := res[i].piHelp.Cdk
+			if CdkCounterMap[tmpCdk] >= int(F+1) {
+				dealerID := CdkDealerMap[tmpCdk]
+				for j := uint32(0); j < F+1; j++ {
+					bls.AsFr(&IdxList[j], uint64(CdkHelperMap[tmpCdk][j]))
+					bls.CopyFr(&yList[j], &CdkSmaskMap[tmpCdk][j])
+					bls.CopyG1(&ContribList[j], &CdkDPRFMap[tmpCdk][j])
+					piDPRFList[j] = &CdkPiDPRFMap[tmpCdk][j]
+				}
+				// recover sMasked at index I
+				polyD := polyring.LagrangeInterpolate(F, IdxList, yList)
+				var sMaskedDI bls.Fr
+				var posI bls.Fr
+				bls.AsFr(&posI, uint64(p.PID))
+				bls.EvalPolyAt(&sMaskedDI, polyD, &posI)
+				Fdi, _ := dprf.Combine(p, F, utils.Uint32ToBytes(p.PID), IdxList, ContribList, piDPRFList)
+				var sdi bls.Fr
+				bls.SubModFr(&sdi, &sMaskedDI, &Fdi)
+				SrecMap[dealerID] = sdi
+				fmt.Printf("[wpACSS.Recover] [Party %v] recovered share from dealer %v\n", p.PID, dealerID)
+				recoveredCtr++
+				if recoveredCtr == len(Shelp) {
+					return SrecMap
+				}
+			}
+		}
+
+	}
+}
+
+func DecapsulateRes(m *protobuf.Message, pid uint32) ([]RecCont, error) {
+	//FIXME: error handling
+	var helpMsg protobuf.WpAcssHelp
+	err := proto.Unmarshal(m.Data, &helpMsg)
+	if err != nil {
+		fmt.Printf("[wpACSS.Recover] [Party %v] receive WpAcssHelp error: %v\n", pid, err)
+		return nil, err
+	} else {
+		fmt.Printf("[wpACSS.Recover] [Party %v] receive WpAcssHelp from Party %v\n", pid, m.Sender)
+	}
+	lenRes := len(helpMsg.Res)
+	var res = make([]RecCont, lenRes)
+	for i := 0; i < lenRes; i++ {
+
+		//decapsulate
+		dealerID := helpMsg.Res[i].DealerID
+		res[i].dealerID = dealerID
+		res[i].helperID = m.Sender
+
+		sRaw := new(bls.Fr)
+		bls.SetFr(sRaw, string(helpMsg.Res[i].SMasked))
+		bls.CopyFr(&res[i].sMasked, sRaw)
+
+		DPRFContribF := new(bls.G1Point)
+		DPRFContribFRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].DPRFContribF)
+		bls.CopyG1(DPRFContribF, DPRFContribFRaw)
+
+		piHelp := new(PiHelp)
+		piHelpGsRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.Gs)
+		bls.CopyG1(&piHelp.Gs, piHelpGsRaw)
+		piHelpCdkRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.Cdk)
+		bls.CopyG1(&piHelp.Cdk, piHelpCdkRaw)
+		piHelpCmaskRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.Cmask)
+		bls.CopyG1(&piHelp.Cmask, piHelpCmaskRaw)
+		piHelpWiMaskRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.WiMask)
+		bls.CopyG1(&piHelp.wiMask, piHelpWiMaskRaw)
+
+		piHelp.piDPRF = *dprf.DecapsulatePiDPRF(helpMsg.Res[i].PiHelp.PiDPRF)
+	}
+	return res, nil
+}
 
 func RecContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, callerID uint32, v party.VShare, pi party.PiShare) RecCont {
 	var sMasked bls.Fr
@@ -73,6 +243,8 @@ func RecContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, call
 		piDPRF: *piDPRF,
 	}
 	recCont := RecCont{
+		dealerID:     dealerID,
+		helperID:     p.PID,
 		sMasked:      sMasked,
 		DPRFContribF: DPRFContribF,
 		piHelp:       piHelp,
@@ -80,7 +252,7 @@ func RecContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, call
 	return recCont
 }
 
-func VrfyContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, callerID uint32, helperID uint32, recCont RecCont) bool {
+func VrfyRecCont(p *party.HonestParty, ID []byte, F uint32, recCont RecCont) bool {
 	if bls.EqualZero(&recCont.sMasked) {
 		fmt.Printf("[wpACSS.Recover] [Party %v] verify RecContrib fail: sMasked is zero\n", p.PID)
 		return false
@@ -91,7 +263,7 @@ func VrfyContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, cal
 	}
 
 	var FrI bls.Fr
-	bls.AsFr(&FrI, uint64(helperID+1))
+	bls.AsFr(&FrI, uint64(recCont.helperID+1))
 
 	p.MutexKZG.Lock()
 	if !p.KZG.CheckProofSingle(&recCont.piHelp.Cmask, &recCont.piHelp.wiMask, &FrI, &recCont.sMasked) {

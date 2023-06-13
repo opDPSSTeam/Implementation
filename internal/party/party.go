@@ -195,6 +195,13 @@ func (p *HonestParty) GetPiShare(index uint32) *PiShare {
 	return &p.shareTuples[index].pi
 }
 
+func (p *HonestParty) IfReceivedVPiTuples(index uint32) bool {
+	if bls.EqualZero(&p.shareTuples[index].v.S) || bls.EqualG1(&p.shareTuples[index].pi.Gs, &bls.GenG1) {
+		return false
+	}
+	return true
+}
+
 func (p *HonestParty) SetMsgSigTuples(md []byte, sig []byte, dealerID uint32) {
 	p.ProofTuple[dealerID].md = append([]byte{}, md...)
 	p.ProofTuple[dealerID].sig = append([]byte{}, sig...)

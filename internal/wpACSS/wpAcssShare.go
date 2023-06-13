@@ -157,9 +157,10 @@ func wpAcssShareEcho(p *party.HonestParty, ID []byte) (party.VShare, party.PiSha
 	var wpAcssMsg protobuf.WpAcssShare
 	err := proto.Unmarshal(m.Data, &wpAcssMsg)
 	if err != nil {
-		fmt.Printf("[wpACSS.Share] [Party %v] send wpAcssShare error: %v\n", p.PID, err)
+		fmt.Printf("[wpACSS.Share] [Party %v] receive wpAcssShare error: %v\n", p.PID, err)
+	} else {
+		fmt.Printf("[wpACSS.Share] [Party %v] receive wpAcssShare from Party %v\n", p.PID, m.Sender)
 	}
-	fmt.Printf("[wpACSS.Share] [Party %v] receive wpAcssShare from Party %v\n", p.PID, m.Sender)
 
 	vDec, pDec, mdPartial, isValid := DecapAndVrfyWpAcssSend(p, &wpAcssMsg)
 	if !isValid {

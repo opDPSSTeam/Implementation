@@ -8,6 +8,7 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/party"
 	"github.com/opDPSSTeam/DPSS/internal/vss"
+	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 )
 
 type PiDPRF struct {
@@ -34,6 +35,31 @@ func InitDPRF(p *party.HonestParty, F uint32, N uint32) (*bls.Fr, *bls.G1Point, 
 		bls.MulG1(&dvk[i], &bls.GenG1, &dskShare[i+1])
 	}
 	return &dsk, &dpk, Cdk, dskShare[1:], dvk, wdk[1:]
+}
+
+func EncapsulatePiDPRF(pi *PiDPRF) *protobuf.PiDPRF {
+	var msg = new(protobuf.PiDPRF)
+	msg.W = bls.ToCompressedG1(&pi.w)
+	msg.C = []byte(pi.c.String())
+	msg.U = []byte(pi.u.String())
+	msg.Dvk = bls.ToCompressedG1(&pi.dvki)
+	return msg
+}
+
+func DecapsulatePiDPRF(msg *protobuf.PiDPRF) *PiDPRF {
+	//FIXME: error handling
+	var pi = new(PiDPRF)
+	wRaw, _ := bls.FromCompressedG1(msg.W)
+	bls.CopyG1(&pi.w, wRaw)
+	cRaw := new(bls.Fr)
+	bls.SetFr(cRaw, string(msg.C))
+	bls.CopyFr(&pi.c, cRaw)
+	uRaw := new(bls.Fr)
+	bls.SetFr(uRaw, string(msg.U))
+	bls.CopyFr(&pi.u, uRaw)
+	dvkRaw, _ := bls.FromCompressedG1(msg.Dvk)
+	bls.CopyG1(&pi.dvki, dvkRaw)
+	return pi
 }
 
 func VrfyKey(p *party.HonestParty, i bls.Fr, dski bls.Fr, dvki bls.G1Point, Cdk bls.G1Point, wdki bls.G1Point) bool {

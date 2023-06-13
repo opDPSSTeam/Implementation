@@ -146,3 +146,29 @@ message wpAcssCallHelp{
   uint32 caller = 1;
   repeated uint32 indices = 2;
 }
+
+message piDPRF{
+  bytes w=1;
+  bytes c=2;
+  bytes u=3;
+  bytes dvk=4;
+}
+
+message piHelp{
+  bytes Gs=1;
+  bytes Cdk =2;
+  bytes Cmask =3;
+  bytes wiMask =4;
+  piDPRF piDPRF = 5;
+}
+
+message RecCont{
+  uint32 dealerID = 1;
+  bytes sMasked = 2;
+  bytes DPRFContribF = 3;
+  piHelp piHelp = 4;
+}
+
+message wpAcssHelp{
+  repeated RecCont res = 1;
+}
