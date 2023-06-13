@@ -57,7 +57,7 @@ func TestDPRF(t *testing.T) {
 		}
 	}
 
-	//test Combine() and VrfyCombine()
+	//test Combine()
 	v1, err := Combine(p, F, x, index[:F+1], W[:F+1], pi[:F+1])
 	if err != nil {
 		fmt.Printf("error while combining: %s\n", err)

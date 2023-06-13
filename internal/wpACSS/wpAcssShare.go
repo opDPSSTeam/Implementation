@@ -188,11 +188,17 @@ func wpAcssShareEcho(p *party.HonestParty, ID []byte) (party.VShare, party.PiSha
 		Data:   data,
 	}, senderID)
 	if err != nil {
-		fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssEcho error: %v\n", p.PID, err)
+		fmt.Printf("[wpACSS.Share] [Party %d] send wpAcssEcho error: %v\n", p.PID, err)
 	} else {
-		fmt.Printf("[wpACSS.Share] Party[%d] send wpAcssEcho done\n", p.PID)
+		fmt.Printf("[wpACSS.Share] [Party %d] send wpAcssEcho done\n", p.PID)
 	}
 	p.SetVPTuples(vDec, pDec, senderID)
+	p.DSKi[senderID] = vDec.DskShare
+	// p.DVKi[senderID] = vDec.Dvk
+	var tmpDVK bls.G1Point
+	bls.MulG1(&tmpDVK, &bls.GenG1, &vDec.DskShare)
+	bls.CopyG1(&p.DVKi[senderID], &tmpDVK)
+
 	return *vDec, *pDec, nil
 }
 
@@ -203,16 +209,31 @@ func VerifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiSh
 		fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: Cvss != Gs*Cz\n")
 		return false
 	}
+	p.MutexKZG.Lock()
 	if !p.KZG.CheckProofSingle(&pDec.Cz, &pDec.Wz0, &bls.ZERO, &bls.ZERO) {
 		fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: wz0 proof failed\n")
+		p.MutexKZG.Unlock()
 		return false
 	}
+	p.MutexKZG.Unlock()
+
 	var Gsi bls.G1Point
 	bls.MulG1(&Gsi, &bls.GenG1, &vDec.S)
-
 	if !vectorcommitment.VerifyMerkleTreeProof(pDec.Cvcom, pDec.PiVcom.Path, pDec.PiVcom.Indicator, []byte(Gsi.String())) {
 		fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: piVcom proof failed\n")
 		return false
+	}
+
+	for i := 0; i < 4; i++ {
+		var pos bls.Fr
+		bls.AsFr(&pos, uint64(p.PID+1))
+		p.MutexKZG.Lock()
+		if !p.KZG.CheckProofSingle(&pDec.PiRec.Crec[i], &pDec.PiRec.Weval[i], &pos, &vDec.RecPolyEval[i]) {
+			p.MutexKZG.Unlock()
+			fmt.Printf("[wpACSS.Share] VerifyWpAcssSend failed: poly commitment to Phi_%v(%v) fail\n", i, p.PID+1)
+			return false
+		}
+		p.MutexKZG.Unlock()
 	}
 
 	return true
@@ -234,8 +255,11 @@ func GenRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr,
 	}
 
 	for i := uint32(0); i < n; i++ {
+		//the input to DPRF.Eval() is 1, ..., n
+		//so party i corresponds to input value i+1
 		y[i] = dprf.Eval(utils.Uint32ToBytes(i+1), *dsk)
 		bls.AsFr(&I[i], uint64(i+1))
+
 		// uncomment to test GenRecPoly()
 		// fmt.Printf("y[%d] = %s\n", i, y[i].String())
 	}
@@ -251,9 +275,7 @@ func GenRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr,
 		p.MutexKZG.Lock()
 		Crec[i] = p.KZG.CommitToPoly(poly[i])
 		for j := uint32(0); j < n; j++ {
-			var position bls.Fr
-			bls.AsFr(&position, uint64(j))
-			weval[i][j] = *p.KZG.ComputeProofSingle(poly[i], position)
+			weval[i][j] = *p.KZG.ComputeProofSingle(poly[i], I[j])
 		}
 		p.MutexKZG.Unlock()
 	}
@@ -405,7 +427,9 @@ func DecapAndVrfyWpAcssSend(p *party.HonestParty, m *protobuf.WpAcssShare) (*par
 		mdPartial = append(mdPartial, m.P.PiRec.Crec[1]...)
 		mdPartial = append(mdPartial, m.P.PiRec.Crec[2]...)
 		mdPartial = append(mdPartial, m.P.PiRec.Crec[3]...)
+		fmt.Printf("[wpACSS.Share] [Party %v] DecapAndVrfyWpAcssSend: valid message\n", p.PID)
 	} else {
+		fmt.Printf("[wpACSS.Share] [Party %v] DecapAndVrfyWpAcssSend: invalid message\n", p.PID)
 		mdPartial = []byte{}
 	}
 
