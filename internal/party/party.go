@@ -107,30 +107,35 @@ type HonestParty struct {
 	portList     []string // port list of the current committee
 	sendChannels []chan *protobuf.Message
 
+	ipListOld          []string // ip list of the old committee
+	portListOld        []string // port list of the old committee
 	ipListNext         []string // ip list of the new committee
 	portListNext       []string // port list of the new committee
 	sendToNextChannels []chan *protobuf.Message
+	sendToOldChannels  []chan *protobuf.Message
 	dispatchChannels   *sync.Map
 
 	FS       *polycommit.FFTSettings
 	KZG      *polycommit.KZGSettings
 	MutexKZG *sync.Mutex
 
-	share       bls.Fr        //share of this party
+	Share       bls.Fr        //share of this party
 	DSKi        []bls.Fr      //dprf secret key shares
 	DVKi        []bls.G1Point //dprf verification key shares
 	ProofTuple  []MsgSigTuple //message-signature tuples from other nodes
 	shareTuples []VPiTuple    //v-pi tuples from other nodes
+	VCom        []bls.G1Point //commitments of all shares
 
 	tblsScheme sign.ThresholdScheme
-	SigPK      *share.PubPoly  //tss pk
-	SigSK      *share.PriShare //tss sk
+	SigPK      *share.PubPoly  //tss pk of current committee
+	SigSK      *share.PriShare //tss sk of current committee
+	SigPKNew   *share.PubPoly  //tss pk of next (new) committee
 
 	LagrangeCoefficients [][]bls.Fr //lagrange coefficients when using f(1),f(2),...,f(2t+1) to calculate f(k) for 0 <= k <= 3*f+1.Indices start from 0
 }
 
 //NewHonestParty return a new honest party object
-func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, portList []string, ipListNext []string, portListNext []string, sigPK *share.PubPoly, sigSK *share.PriShare) *HonestParty {
+func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, portList []string, ipListOld []string, portListOld []string, ipListNext []string, portListNext []string, sigPK *share.PubPoly, sigPKNew *share.PubPoly, sigSK *share.PriShare) *HonestParty {
 	var SysSuite = kyberbls.NewBLS12381Suite()
 	tblsScheme := tbls.NewThresholdSchemeOnG1(SysSuite)
 
@@ -159,23 +164,28 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 		PID:                pid,
 		ipList:             ipList,
 		portList:           portList,
+		ipListOld:          ipListOld,
+		portListOld:        portListOld,
 		ipListNext:         ipListNext,
 		portListNext:       portListNext,
 		sendChannels:       make([]chan *protobuf.Message, N),
 		sendToNextChannels: make([]chan *protobuf.Message, N),
+		sendToOldChannels:  make([]chan *protobuf.Message, N),
 
 		tblsScheme: tblsScheme,
 		SigPK:      sigPK,
 		SigSK:      sigSK,
+		SigPKNew:   sigPKNew,
 
 		KZG:      KZG,
 		MutexKZG: &mutexKZG,
 
-		share:       bls.ZERO,
+		Share:       bls.ZERO,
 		DSKi:        make([]bls.Fr, N),
 		DVKi:        make([]bls.G1Point, N),
 		ProofTuple:  make([]MsgSigTuple, N),
 		shareTuples: make([]VPiTuple, N),
+		VCom:        make([]bls.G1Point, N),
 
 		LagrangeCoefficients: LagrangeCoefficients,
 	}
@@ -205,4 +215,14 @@ func (p *HonestParty) IfReceivedVPiTuples(index uint32) bool {
 func (p *HonestParty) SetMsgSigTuples(md []byte, sig []byte, dealerID uint32) {
 	p.ProofTuple[dealerID].md = append([]byte{}, md...)
 	p.ProofTuple[dealerID].sig = append([]byte{}, sig...)
+}
+
+//this function is used for test initialization only
+func (p *HonestParty) SetShare(share bls.Fr) {
+	p.Share = share
+}
+
+//this function is used for test initialization only
+func (p *HonestParty) SetVCom(vcom []bls.G1Point) {
+	p.VCom = vcom
 }

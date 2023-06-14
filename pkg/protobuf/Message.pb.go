@@ -1914,6 +1914,125 @@ func (x *WpAcssHelp) GetRes() []*RecCont {
 	return nil
 }
 
+//Dpss
+type DpssCom struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Cold  []byte        `protobuf:"bytes,1,opt,name=Cold,proto3" json:"Cold,omitempty"`
+	Gsi   []byte        `protobuf:"bytes,2,opt,name=Gsi,proto3" json:"Gsi,omitempty"`
+	PiOld *PiVcomMerkle `protobuf:"bytes,3,opt,name=piOld,proto3" json:"piOld,omitempty"`
+}
+
+func (x *DpssCom) Reset() {
+	*x = DpssCom{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_Message_proto_msgTypes[32]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DpssCom) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DpssCom) ProtoMessage() {}
+
+func (x *DpssCom) ProtoReflect() protoreflect.Message {
+	mi := &file_Message_proto_msgTypes[32]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DpssCom.ProtoReflect.Descriptor instead.
+func (*DpssCom) Descriptor() ([]byte, []int) {
+	return file_Message_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *DpssCom) GetCold() []byte {
+	if x != nil {
+		return x.Cold
+	}
+	return nil
+}
+
+func (x *DpssCom) GetGsi() []byte {
+	if x != nil {
+		return x.Gsi
+	}
+	return nil
+}
+
+func (x *DpssCom) GetPiOld() *PiVcomMerkle {
+	if x != nil {
+		return x.PiOld
+	}
+	return nil
+}
+
+type DpssProof struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	M   []byte `protobuf:"bytes,1,opt,name=m,proto3" json:"m,omitempty"`
+	Sig []byte `protobuf:"bytes,2,opt,name=sig,proto3" json:"sig,omitempty"`
+}
+
+func (x *DpssProof) Reset() {
+	*x = DpssProof{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_Message_proto_msgTypes[33]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DpssProof) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DpssProof) ProtoMessage() {}
+
+func (x *DpssProof) ProtoReflect() protoreflect.Message {
+	mi := &file_Message_proto_msgTypes[33]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DpssProof.ProtoReflect.Descriptor instead.
+func (*DpssProof) Descriptor() ([]byte, []int) {
+	return file_Message_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *DpssProof) GetM() []byte {
+	if x != nil {
+		return x.M
+	}
+	return nil
+}
+
+func (x *DpssProof) GetSig() []byte {
+	if x != nil {
+		return x.Sig
+	}
+	return nil
+}
+
 var File_Message_proto protoreflect.FileDescriptor
 
 var file_Message_proto_rawDesc = []byte{
@@ -2057,8 +2176,17 @@ var file_Message_proto_rawDesc = []byte{
 	0x2e, 0x70, 0x69, 0x48, 0x65, 0x6c, 0x70, 0x52, 0x06, 0x70, 0x69, 0x48, 0x65, 0x6c, 0x70, 0x22,
 	0x28, 0x0a, 0x0a, 0x77, 0x70, 0x41, 0x63, 0x73, 0x73, 0x48, 0x65, 0x6c, 0x70, 0x12, 0x1a, 0x0a,
 	0x03, 0x72, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x08, 0x2e, 0x52, 0x65, 0x63,
-	0x43, 0x6f, 0x6e, 0x74, 0x52, 0x03, 0x72, 0x65, 0x73, 0x42, 0x0b, 0x5a, 0x09, 0x2f, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x43, 0x6f, 0x6e, 0x74, 0x52, 0x03, 0x72, 0x65, 0x73, 0x22, 0x54, 0x0a, 0x07, 0x44, 0x70, 0x73,
+	0x73, 0x43, 0x6f, 0x6d, 0x12, 0x12, 0x0a, 0x04, 0x43, 0x6f, 0x6c, 0x64, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x0c, 0x52, 0x04, 0x43, 0x6f, 0x6c, 0x64, 0x12, 0x10, 0x0a, 0x03, 0x47, 0x73, 0x69, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x47, 0x73, 0x69, 0x12, 0x23, 0x0a, 0x05, 0x70, 0x69,
+	0x4f, 0x6c, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0d, 0x2e, 0x50, 0x69, 0x56, 0x63,
+	0x6f, 0x6d, 0x4d, 0x65, 0x72, 0x6b, 0x6c, 0x65, 0x52, 0x05, 0x70, 0x69, 0x4f, 0x6c, 0x64, 0x22,
+	0x2b, 0x0a, 0x09, 0x44, 0x70, 0x73, 0x73, 0x50, 0x72, 0x6f, 0x6f, 0x66, 0x12, 0x0c, 0x0a, 0x01,
+	0x6d, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x01, 0x6d, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x69,
+	0x67, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x73, 0x69, 0x67, 0x42, 0x0b, 0x5a, 0x09,
+	0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -2073,7 +2201,7 @@ func file_Message_proto_rawDescGZIP() []byte {
 	return file_Message_proto_rawDescData
 }
 
-var file_Message_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_Message_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_Message_proto_goTypes = []interface{}{
 	(*Message)(nil),            // 0: Message
 	(*Value)(nil),              // 1: Value
@@ -2107,6 +2235,8 @@ var file_Message_proto_goTypes = []interface{}{
 	(*PiHelp)(nil),             // 29: piHelp
 	(*RecCont)(nil),            // 30: RecCont
 	(*WpAcssHelp)(nil),         // 31: wpAcssHelp
+	(*DpssCom)(nil),            // 32: DpssCom
+	(*DpssProof)(nil),          // 33: DpssProof
 }
 var file_Message_proto_depIdxs = []int32{
 	22, // 0: piInShare.piVcom:type_name -> PiVcomMerkle
@@ -2116,11 +2246,12 @@ var file_Message_proto_depIdxs = []int32{
 	28, // 4: piHelp.piDPRF:type_name -> piDPRF
 	29, // 5: RecCont.piHelp:type_name -> piHelp
 	30, // 6: wpAcssHelp.res:type_name -> RecCont
-	7,  // [7:7] is the sub-list for method output_type
-	7,  // [7:7] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	22, // 7: DpssCom.piOld:type_name -> PiVcomMerkle
+	8,  // [8:8] is the sub-list for method output_type
+	8,  // [8:8] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_Message_proto_init() }
@@ -2513,6 +2644,30 @@ func file_Message_proto_init() {
 				return nil
 			}
 		}
+		file_Message_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DpssCom); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_Message_proto_msgTypes[33].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DpssProof); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2520,7 +2675,7 @@ func file_Message_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_Message_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   32,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

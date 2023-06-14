@@ -20,15 +20,13 @@ func TestGenRecPoly(t *testing.T) {
 
 	ipList := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
 	portList := []string{"8880", "8881", "8882", "8883", "8884", "8885", "8886", "8887", "8888", "8889"}
-	ipListNext := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
-	portListNext := []string{"8890", "8891", "8892", "8893", "8894", "8895", "8896", "8897", "8898", "8899"}
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
-	p := party.NewHonestParty(0, N, F, N, ipList, portList, ipListNext, portListNext, pk, sk[2*F+1])
+	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
 
-	//uncomment the block comment in GenRecPoly to test
-	GenRecPoly(p, F, N)
+	//uncomment the block comment in genRecPoly to test
+	genRecPoly(p, F, N)
 
 }
 
@@ -36,15 +34,13 @@ func TestShare(t *testing.T) {
 	ctx, _ := context.WithCancel(context.Background())
 	ipList := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
 	portList := []string{"8880", "8881", "8882", "8883", "8884", "8885", "8886", "8887", "8888", "8889"}
-	ipListNext := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
-	portListNext := []string{"8890", "8891", "8892", "8893", "8894", "8895", "8896", "8897", "8898", "8899"}
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 
 	var p []*party.HonestParty = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, ipListNext, portListNext, pk, sk[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -68,7 +64,7 @@ func TestShare(t *testing.T) {
 	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
-		md, sigd := wpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
+		md, sigd := WpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
 
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
@@ -82,7 +78,7 @@ func TestShare(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := wpAcssShareEcho(p[i], ID)
+			vShare, _, err := WpAcssShareEcho(p[i], false, ID)
 			if err != nil {
 				fmt.Printf("error: %v\n", err)
 				wg.Done()
@@ -104,15 +100,13 @@ func TestShare(t *testing.T) {
 func TestCallHelp(t *testing.T) {
 	ipList := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
 	portList := []string{"8880", "8881", "8882", "8883", "8884", "8885", "8886", "8887", "8888", "8889"}
-	ipListNext := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
-	portListNext := []string{"8890", "8891", "8892", "8893", "8894", "8895", "8896", "8897", "8898", "8899"}
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 
 	var p []*party.HonestParty = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, ipListNext, portListNext, pk, sk[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -132,15 +126,13 @@ func TestRecContrib(t *testing.T) {
 	ctx, _ := context.WithCancel(context.Background())
 	ipList := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
 	portList := []string{"8880", "8881", "8882", "8883", "8884", "8885", "8886", "8887", "8888", "8889"}
-	ipListNext := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
-	portListNext := []string{"8890", "8891", "8892", "8893", "8894", "8895", "8896", "8897", "8898", "8899"}
 	N := uint32(7)
 	F := uint32(2)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 
-	var p []*party.HonestParty = make([]*party.HonestParty, N)
+	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, ipListNext, portListNext, pk, sk[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -163,7 +155,7 @@ func TestRecContrib(t *testing.T) {
 	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
-		md, sigd := wpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
+		md, sigd := WpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
 
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
@@ -177,7 +169,7 @@ func TestRecContrib(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := wpAcssShareEcho(p[i], ID)
+			vShare, _, err := WpAcssShareEcho(p[i], false, ID)
 			if err != nil {
 				fmt.Printf("error: %v\n", err)
 				wg.Done()
@@ -189,27 +181,27 @@ func TestRecContrib(t *testing.T) {
 	}
 	wg.Wait() //wait for all shares to be received
 
-	//verify single RecContrib
+	//verify single recContrib
 	dealerID := uint32(0)
 	callerID := uint32(1)
 
 	for i := uint32(0); i < N; i++ {
 		if i != dealerID && i != callerID {
 			helperID := i
-			cont := RecContrib(p[helperID], ID, F, dealerID, callerID, *p[helperID].GetVShare(dealerID), *p[helperID].GetPiShare(dealerID))
-			vrf := VrfyRecCont(p[callerID], ID, F, cont)
+			cont := recContrib(p[helperID], ID, F, dealerID, callerID, *p[helperID].GetVShare(dealerID), *p[helperID].GetPiShare(dealerID))
+			vrf := vrfyRecCont(p[callerID], ID, F, cont)
 			assert.True(t, vrf, "Verify contribution failed")
 			fmt.Printf("Party %v has generated a valid RecCont for caller %v\n", i, callerID)
 		}
 	}
 
-	//verify the combination of RecContrib
+	//verify the combination of recContrib
 	callerID = uint32(3)
 	fmt.Printf("original share: %v\n", p[callerID].GetVShare(dealerID).S.String())
 
 	contList := make([]RecCont, N)
 	for helperID := uint32(0); helperID < N; helperID++ {
-		contList[helperID] = RecContrib(p[helperID], ID, F, dealerID, callerID, *p[helperID].GetVShare(dealerID), *p[helperID].GetPiShare(dealerID))
+		contList[helperID] = recContrib(p[helperID], ID, F, dealerID, callerID, *p[helperID].GetVShare(dealerID), *p[helperID].GetPiShare(dealerID))
 	}
 
 	IdxList := make([]bls.Fr, F+1)
@@ -240,15 +232,13 @@ func TestRecover(t *testing.T) {
 	ctx, _ := context.WithCancel(context.Background())
 	ipList := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
 	portList := []string{"8880", "8881", "8882", "8883", "8884", "8885", "8886", "8887", "8888", "8889"}
-	ipListNext := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
-	portListNext := []string{"8890", "8891", "8892", "8893", "8894", "8895", "8896", "8897", "8898", "8899"}
-	N := uint32(4)
-	F := uint32(1)
+	N := uint32(7)
+	F := uint32(2)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 
-	var p []*party.HonestParty = make([]*party.HonestParty, N)
+	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, ipListNext, portListNext, pk, sk[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -271,7 +261,7 @@ func TestRecover(t *testing.T) {
 	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
-		md, sigd := wpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
+		md, sigd := WpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
 
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
@@ -285,7 +275,7 @@ func TestRecover(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := wpAcssShareEcho(p[i], ID)
+			vShare, _, err := WpAcssShareEcho(p[i], false, ID)
 			if err != nil {
 				fmt.Printf("error: %v\n", err)
 				wg.Done()
@@ -299,9 +289,9 @@ func TestRecover(t *testing.T) {
 
 	dealerID := uint32(0)
 	callerID := uint32(1)
-
+	var originalShare, recoveredShare bls.Fr
 	//this is the original share from dealer
-	originalShare := p[callerID].GetVShare(dealerID).S
+	originalShare = p[callerID].GetVShare(dealerID).S
 	fmt.Printf("original share: %v\n", originalShare.String())
 
 	CallHelp(p[callerID], ID, F, N, []uint32{dealerID})
@@ -312,11 +302,13 @@ func TestRecover(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		res := WaitHelp(p[callerID], ID, F, N, []uint32{dealerID})
-		recoveredShare := res[dealerID]
+		recoveredShare = res[dealerID]
 		fmt.Printf("recovered share: %v\n", recoveredShare.String())
 		wg.Done()
 		fmt.Printf("Party %v has recovered the secret for dealerID = %v\n", callerID, dealerID)
 	}()
 	wg.Wait()
+
+	assert.True(t, bls.EqualFr(&originalShare, &recoveredShare), "Recover share failed: inconsistent shares")
 
 }

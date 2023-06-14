@@ -172,3 +172,15 @@ message RecCont{
 message wpAcssHelp{
   repeated RecCont res = 1;
 }
+
+//Dpss
+message DpssCom{
+  bytes Cold = 1;
+  bytes Gsi = 2;
+  PiVcomMerkle piOld = 3;
+}
+
+message DpssProof{
+  bytes m = 1;
+  bytes sig = 2;
+}

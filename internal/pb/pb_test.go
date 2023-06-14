@@ -9,11 +9,12 @@ import (
 	"context"
 	"fmt"
 
+	"testing"
+
 	kyberbls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/sign/tbls"
 	"github.com/opDPSSTeam/DPSS/internal/party"
 	"golang.org/x/crypto/sha3"
-	"testing"
 )
 
 func TestPb(t *testing.T) {
@@ -28,7 +29,7 @@ func TestPb(t *testing.T) {
 
 	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(1, N, F, i, ipList, portList, ipList, portList, pk, sk[i])
+		p[i] = party.NewHonestParty(1, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
 	}
 
 	for i := uint32(0); i < N; i++ {

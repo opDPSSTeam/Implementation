@@ -34,6 +34,14 @@ func (p *HonestParty) InitSendToNextChannel() error {
 	return nil
 }
 
+func (p *HonestParty) InitSendToOldChannel() error {
+	for i := uint32(0); i < p.N; i++ {
+		p.sendToOldChannels[i] = core.MakeSendChannel(p.ipListOld[i], p.portListOld[i])
+	}
+	// fmt.Println(p.sendChannels, "====")
+	return nil
+}
+
 //Send a message to a party with des as its pid, 0 =< des < p.N
 func (p *HonestParty) Send(m *protobuf.Message, des uint32) error {
 	if !p.checkSendChannelsInit() {
@@ -54,6 +62,18 @@ func (p *HonestParty) SendToNextCommittee(m *protobuf.Message, des uint32) error
 	}
 	if des < p.N {
 		p.sendToNextChannels[des] <- m
+		return nil
+	}
+	return errors.New("this pid is too large")
+}
+
+//SendToOldCommittee sends a message to a old committtee party with des as its pid, 0 =< des < p.N
+func (p *HonestParty) SendToOldCommittee(m *protobuf.Message, des uint32) error {
+	if !p.checkInitSendChannelsToOld() {
+		return errors.New("this party's send channels are not initialized yet")
+	}
+	if des < p.N {
+		p.sendToOldChannels[des] <- m
 		return nil
 	}
 	return errors.New("this pid is too large")
@@ -118,6 +138,10 @@ func (p *HonestParty) checkSendChannelsInit() bool {
 
 func (p *HonestParty) checkInitSendChannelsToNext() bool {
 	return p.sendToNextChannels != nil
+}
+
+func (p *HonestParty) checkInitSendChannelsToOld() bool {
+	return p.sendToOldChannels != nil
 }
 
 //w_0,w_1,...,w^(3f+1) will be used to represent values of a polynomial.

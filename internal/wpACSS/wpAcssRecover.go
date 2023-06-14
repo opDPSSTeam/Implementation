@@ -79,7 +79,7 @@ func Help(p *party.HonestParty, ID []byte, F uint32, N uint32) {
 				isEmpty = false
 				v := p.GetVShare(dealerID)
 				pi := p.GetPiShare(dealerID)
-				res[index] = RecContrib(p, ID, F, dealerID, callerID, *v, *pi)
+				res[index] = recContrib(p, ID, F, dealerID, callerID, *v, *pi)
 
 				//encapsulate RecCont
 				msg.Res[index] = &protobuf.RecCont{
@@ -128,7 +128,7 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 
 	for {
 		m := <-p.GetMessage("WpAcssHelp", ID)
-		res, err := DecapsulateRes(m, p.PID)
+		res, err := decapsulateRes(m, p.PID)
 		if err != nil {
 			continue
 		}
@@ -137,7 +137,7 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 		lenRes := len(res)
 		var FLGContinue bool = false
 		for i := 0; i < lenRes; i++ {
-			if !VrfyRecCont(p, ID, F, res[i]) {
+			if !vrfyRecCont(p, ID, F, res[i]) {
 				fmt.Printf("[wpACSS.Recover] [Party %v] verify the RecCont (dealerID: %v) from Party %v fail\n", p.PID, res[i].dealerID, m.Sender)
 				FLGContinue = true
 				continue
@@ -206,7 +206,7 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 	}
 }
 
-func DecapsulateRes(m *protobuf.Message, pid uint32) ([]RecCont, error) {
+func decapsulateRes(m *protobuf.Message, pid uint32) ([]RecCont, error) {
 	//FIXME: error handling
 	var helpMsg protobuf.WpAcssHelp
 	err := proto.Unmarshal(m.Data, &helpMsg)
@@ -248,7 +248,7 @@ func DecapsulateRes(m *protobuf.Message, pid uint32) ([]RecCont, error) {
 	return res, nil
 }
 
-func RecContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, callerID uint32, v party.VShare, pi party.PiShare) RecCont {
+func recContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, callerID uint32, v party.VShare, pi party.PiShare) RecCont {
 	var sMasked bls.Fr
 	var wiMask, Cmask bls.G1Point
 	index := callerID / F
@@ -274,13 +274,13 @@ func RecContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, call
 	return recCont
 }
 
-func VrfyRecCont(p *party.HonestParty, ID []byte, F uint32, recCont RecCont) bool {
+func vrfyRecCont(p *party.HonestParty, ID []byte, F uint32, recCont RecCont) bool {
 	if bls.EqualZero(&recCont.sMasked) {
-		fmt.Printf("[wpACSS.Recover] [Party %v] verify RecContrib fail: sMasked is zero\n", p.PID)
+		fmt.Printf("[wpACSS.Recover] [Party %v] verify recContrib fail: sMasked is zero\n", p.PID)
 		return false
 	}
 	if bls.EqualG1(&recCont.DPRFContribF, &bls.GenG1) {
-		fmt.Printf("[wpACSS.Recover] [Party %v] verify RecContrib fail: DPRFContribF is zero\n", p.PID)
+		fmt.Printf("[wpACSS.Recover] [Party %v] verify recContrib fail: DPRFContribF is zero\n", p.PID)
 		return false
 	}
 
@@ -289,14 +289,14 @@ func VrfyRecCont(p *party.HonestParty, ID []byte, F uint32, recCont RecCont) boo
 
 	p.MutexKZG.Lock()
 	if !p.KZG.CheckProofSingle(&recCont.piHelp.Cmask, &recCont.piHelp.wiMask, &FrI, &recCont.sMasked) {
-		fmt.Printf("[wpACSS.Recover] [Party %v] verify RecContrib fail: sMasked is not valid\n", p.PID)
+		fmt.Printf("[wpACSS.Recover] [Party %v] verify recContrib fail: sMasked is not valid\n", p.PID)
 		p.MutexKZG.Unlock()
 		return false
 	}
 	p.MutexKZG.Unlock()
 
 	if !dprf.VrfyContrib(recCont.DPRFContribF, &recCont.piHelp.piDPRF) {
-		fmt.Printf("[wpACSS.Recover] [Party %v] verify RecContrib fail: DPRFContribF is not valid\n", p.PID)
+		fmt.Printf("[wpACSS.Recover] [Party %v] verify recContrib fail: DPRFContribF is not valid\n", p.PID)
 		return false
 	}
 
