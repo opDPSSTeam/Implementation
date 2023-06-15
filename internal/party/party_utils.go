@@ -283,6 +283,15 @@ func (p *HonestParty) InterpolateComOrWit(degree uint32, targetIndex uint32, Lis
 
 func (p *HonestParty) InterpolateComOrWitByKnownIndexes(degree uint32, targetIndex uint32, knownIndexes []bls.Fr, List []bls.G1Point) bls.G1Point {
 
+	//check whether targetIndex is in knownIndexes
+	var target bls.Fr
+	bls.AsFr(&target, uint64(targetIndex))
+	for i := 0; i < len(knownIndexes); i++ {
+		if bls.EqualFr(&target, &knownIndexes[i]) {
+			return List[i]
+		}
+	}
+
 	//check whether to use InterpolateComOrWit()
 	var isSimple = true
 	for i := 0; uint32(i) < degree+1; i++ {

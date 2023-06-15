@@ -224,5 +224,8 @@ func (p *HonestParty) SetShare(share bls.Fr) {
 
 //this function is used for test initialization only
 func (p *HonestParty) SetVCom(vcom []bls.G1Point) {
-	p.VCom = vcom
+	// p.VCom = vcom
+	for i := 0; i < len(vcom); i++ {
+		bls.CopyG1(&p.VCom[i], &vcom[i])
+	}
 }

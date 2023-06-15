@@ -27,7 +27,7 @@ func WpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 
 	//Gs=g^s
 	var Gs bls.G1Point
-	bls.MulG1(&Gs, &bls.GenG1, &shares[0])
+	bls.MulG1(&Gs, &bls.GenG1, &secret)
 
 	// Z(x) = F(x) - s
 	polyZ := make([]bls.Fr, F+1)
@@ -50,7 +50,8 @@ func WpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 
 	vgBytes := make([][]byte, N)
 	for i := uint32(0); i < N; i++ {
-		vgBytes[i] = []byte(vg[i].String())
+		// vgBytes[i] = []byte(vg[i].String())
+		vgBytes[i] = bls.ToCompressedG1(&vg[i])
 	}
 	tre, _ := vectorcommitment.NewMerkleTree(vgBytes)
 	Cvcom := tre.GetMerkleTreeRoot()
@@ -165,9 +166,9 @@ func WpAcssShareEcho(p *party.HonestParty, isNew bool, ID []byte) (party.VShare,
 	err := proto.Unmarshal(m.Data, &wpAcssMsg)
 	if err != nil {
 		fmt.Printf("[wpACSS.Share] [Party %v] receive wpAcssShare error: %v\n", p.PID, err)
-	} else {
-		fmt.Printf("[wpACSS.Share] [Party %v] receive wpAcssShare from [Party %v]\n", p.PID, m.Sender)
-	}
+	} // else {
+	// 	fmt.Printf("[wpACSS.Share] [Party %v] receive wpAcssShare from [Party %v]\n", p.PID, m.Sender)
+	// }
 
 	vDec, pDec, mdPartial, isValid := decapAndVrfyWpAcssSend(p, &wpAcssMsg)
 	if !isValid {
@@ -216,7 +217,6 @@ func WpAcssShareEcho(p *party.HonestParty, isNew bool, ID []byte) (party.VShare,
 
 	p.SetVPTuples(vDec, pDec, senderID)
 	p.DSKi[senderID] = vDec.DskShare
-	// p.DVKi[senderID] = vDec.Dvk
 	var tmpDVK bls.G1Point
 	bls.MulG1(&tmpDVK, &bls.GenG1, &vDec.DskShare)
 	bls.CopyG1(&p.DVKi[senderID], &tmpDVK)
@@ -241,7 +241,7 @@ func verifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiSh
 
 	var Gsi bls.G1Point
 	bls.MulG1(&Gsi, &bls.GenG1, &vDec.S)
-	if !vectorcommitment.VerifyMerkleTreeProof(pDec.Cvcom, pDec.PiVcom.Path, pDec.PiVcom.Indicator, []byte(Gsi.String())) {
+	if !vectorcommitment.VerifyMerkleTreeProof(pDec.Cvcom, pDec.PiVcom.Path, pDec.PiVcom.Indicator, bls.ToCompressedG1(&Gsi)) {
 		fmt.Printf("[wpACSS.Share] [Party %v] verifyWpAcssSend failed: piVcom proof failed\n", p.PID)
 		return false
 	}
@@ -360,7 +360,8 @@ func encapsulateWpAcssSend(v *party.VShare, pi *party.PiShare, FLGmdEncoded bool
 	}
 	var mdPartial []byte
 	if !FLGmdEncoded {
-		mdPartial = append([]byte{}, msg.P.Gs...)
+		mdPartial = append([]byte("||"), msg.P.Gs...)
+		mdPartial = append(mdPartial, []byte("||")...)
 		mdPartial = append(mdPartial, msg.P.Cvss...)
 		mdPartial = append(mdPartial, msg.P.Cvcom...)
 		mdPartial = append(mdPartial, msg.P.PiRec.Cdk...)
@@ -441,7 +442,8 @@ func decapAndVrfyWpAcssSend(p *party.HonestParty, m *protobuf.WpAcssShare) (*par
 	isValid := verifyWpAcssSend(p, vDec, piDec)
 	if isValid {
 		// mdPartial = g^s||Cvss||Cvcom||Cdk||Crec[0...3]
-		mdPartial = append([]byte{}, m.P.Gs...)
+		mdPartial = append([]byte("||"), m.P.Gs...)
+		mdPartial = append(mdPartial, []byte("||")...)
 		mdPartial = append(mdPartial, m.P.Cvss...)
 		mdPartial = append(mdPartial, m.P.Cvcom...)
 		mdPartial = append(mdPartial, m.P.PiRec.Cdk...)
