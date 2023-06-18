@@ -50,7 +50,6 @@ func WpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 
 	vgBytes := make([][]byte, N)
 	for i := uint32(0); i < N; i++ {
-		// vgBytes[i] = []byte(vg[i].String())
 		vgBytes[i] = bls.ToCompressedG1(&vg[i])
 	}
 	tre, _ := vectorcommitment.NewMerkleTree(vgBytes)
@@ -134,7 +133,6 @@ func WpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 		case <-ctx.Done():
 			return nil, nil
 		case m := <-p.GetMessage("wpAcssEcho", ID):
-			// case m := <-p.GetMessageFromNextCommittee("wpAcssEcho", ID):
 			var payload protobuf.WpAcssEcho
 			err := proto.Unmarshal(m.Data, &payload)
 			if err != nil {

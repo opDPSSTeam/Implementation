@@ -53,8 +53,6 @@ func TestDpssOld(t *testing.T) {
 
 	ID := []byte("testDpssOld")
 
-	// current := false //send to next committee
-
 	//let p[0] initialize the shares and commitments
 	_, shares, _, _ := vss.VssShare(p[0], F, N, secret)
 	var Gsi bls.G1Point
@@ -138,8 +136,6 @@ func TestDpssNew(t *testing.T) {
 
 	ID := []byte("testDpssOld")
 
-	// current := false //send to next committee
-
 	//let p[0] initialize the shares and commitments
 	_, shares, _, _ := vss.VssShare(p[0], F, N, secret)
 	var Gsi bls.G1Point
@@ -152,24 +148,28 @@ func TestDpssNew(t *testing.T) {
 	for i := uint32(0); i < N; i++ {
 		p[i].SetShare(shares[i+1])
 		p[i].SetVCom(vcom)
-		// pNext[i].SetVCom(vcom)
 	}
 
-	subShares := make([]bls.Fr, N)
+	newShares := make([]bls.Fr, N)
 	pos := make([]bls.Fr, N)
 
 	var wg sync.WaitGroup
-	wg.Add(int(N) + 1)
-	go func() {
-		DpssOld(ctx, p[0], ID, F, N)
-		fmt.Printf("shares[1]: %v\n", shares[1].String())
-		wg.Done()
-	}()
+	wg.Add(2 * int(N))
 
+	//old parties
+	for i := uint32(0); i < N; i++ {
+		go func(i uint32) {
+			DpssOld(ctx, p[i], ID, F, N)
+			// fmt.Printf("shares[1]: %v\n", shares[1].String())
+			wg.Done()
+		}(i)
+	}
+
+	//new parties
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
 			DpssNew(ctx, pNext[i], ID, F, N)
-			subShares[i] = pNext[i].GetVShare(0).S
+			newShares[i] = pNext[i].GetVShare(0).S
 			wg.Done()
 		}(i)
 	}
@@ -178,9 +178,9 @@ func TestDpssNew(t *testing.T) {
 	for i := uint32(0); i < F+1; i++ {
 		bls.AsFr(&pos[i], uint64(i+1))
 	}
-	poly := polyring.LagrangeInterpolate(F, pos[:F+2], subShares[:F+2])
+	poly := polyring.LagrangeInterpolate(F, pos[:F+2], newShares[:F+2])
 	fmt.Println("poly: ", party.PolyToString(poly))
-	// assert.True(t, bls.EqualFr(&shares[1], &poly[0]), "Reconstruction of Party 1's share from the subshares fail")
+	// assert.True(t, bls.EqualFr(&shares[1], &poly[0]), "Reconstruct secret from the newshares fail")
 }
 
 func TestSplitMd(t *testing.T) {

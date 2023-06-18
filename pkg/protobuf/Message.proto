@@ -184,3 +184,13 @@ message DpssProof{
   bytes m = 1;
   bytes sig = 2;
 }
+
+message MvbaTuple{
+  uint32 index = 1;
+  bytes md = 2;
+  bytes sig = 3;
+}
+
+message MvbaIn{
+  repeated MvbaTuple tuple = 1;
+}

@@ -1,6 +1,7 @@
 package party
 
 import (
+	"fmt"
 	"sync"
 
 	kyberbls "github.com/drand/kyber-bls12381"
@@ -123,6 +124,7 @@ type HonestParty struct {
 	DSKi        []bls.Fr      //dprf secret key shares
 	DVKi        []bls.G1Point //dprf verification key shares
 	ProofTuple  []MsgSigTuple //message-signature tuples from other nodes
+	ProofCtr    int           //counter of received message-signature tuples
 	shareTuples []VPiTuple    //v-pi tuples from other nodes
 	VCom        []bls.G1Point //commitments of all shares
 
@@ -184,6 +186,7 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 		DSKi:        make([]bls.Fr, N),
 		DVKi:        make([]bls.G1Point, N),
 		ProofTuple:  make([]MsgSigTuple, N),
+		ProofCtr:    0,
 		shareTuples: make([]VPiTuple, N),
 		VCom:        make([]bls.G1Point, N),
 
@@ -212,9 +215,23 @@ func (p *HonestParty) IfReceivedVPiTuples(index uint32) bool {
 	return true
 }
 
-func (p *HonestParty) SetMsgSigTuples(md []byte, sig []byte, dealerID uint32) {
+func (p *HonestParty) IfReceivedMsgProofTuple(index uint32) bool {
+	if p.ProofTuple[index].md == nil || p.ProofTuple[index].sig == nil {
+		return false
+	} else {
+		return true
+	}
+}
+
+func (p *HonestParty) SetMsgSigTuples(md []byte, sig []byte, dealerID uint32) int {
 	p.ProofTuple[dealerID].md = append([]byte{}, md...)
 	p.ProofTuple[dealerID].sig = append([]byte{}, sig...)
+	p.ProofCtr = p.ProofCtr + 1
+	return p.ProofCtr
+}
+
+func (p *HonestParty) GetMsgSigTuple(index uint32) ([]byte, []byte) {
+	return p.ProofTuple[index].md, p.ProofTuple[index].sig
 }
 
 //this function is used for test initialization only
@@ -228,4 +245,5 @@ func (p *HonestParty) SetVCom(vcom []bls.G1Point) {
 	for i := 0; i < len(vcom); i++ {
 		bls.CopyG1(&p.VCom[i], &vcom[i])
 	}
+	fmt.Printf("party %v has set VCOM, VCom[0] = %s\n", p.PID, p.VCom[0].String())
 }

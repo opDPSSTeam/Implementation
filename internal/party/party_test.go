@@ -23,4 +23,9 @@ func TestUtils(t *testing.T) {
 	v.S = bls.ONE
 	p.SetVPTuples(&v, &pi, 1)
 	fmt.Printf("p.IfReceivedVPiTuples(1): %v\n", p.IfReceivedVPiTuples(1))
+
+	fmt.Printf("p.IfReceivedMsgProofTuple(1): %v\n", p.IfReceivedMsgProofTuple(1))
+	p.SetMsgSigTuples([]byte("md"), []byte("sig"), 1)
+	fmt.Printf("p.IfReceivedMsgProofTuple(1): %v\n", p.IfReceivedMsgProofTuple(1))
+
 }
