@@ -14,6 +14,7 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/polyring"
 	"github.com/opDPSSTeam/DPSS/internal/vss"
 	"github.com/opDPSSTeam/DPSS/internal/wpACSS"
+	"github.com/opDPSSTeam/DPSS/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -134,7 +135,7 @@ func TestDpssNew(t *testing.T) {
 	var secret bls.Fr
 	bls.AsFr(&secret, uint64(12345))
 
-	ID := []byte("testDpssOld")
+	ID := utils.IntToBytes(1) //ID should be generated in this way (constraints in the implementation of MVBA)
 
 	//let p[0] initialize the shares and commitments
 	_, shares, _, _ := vss.VssShare(p[0], F, N, secret)
@@ -160,6 +161,7 @@ func TestDpssNew(t *testing.T) {
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
 			DpssOld(ctx, p[i], ID, F, N)
+			fmt.Printf("[DPSS] [Old Party %v] exit\n", i)
 			// fmt.Printf("shares[1]: %v\n", shares[1].String())
 			wg.Done()
 		}(i)
@@ -168,8 +170,7 @@ func TestDpssNew(t *testing.T) {
 	//new parties
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			DpssNew(ctx, pNext[i], ID, F, N)
-			newShares[i] = pNext[i].GetVShare(0).S
+			newShares[i] = DpssNew(ctx, pNext[i], ID, F, N)
 			wg.Done()
 		}(i)
 	}

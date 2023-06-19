@@ -7,6 +7,7 @@ package mvba
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -113,6 +114,7 @@ func TestMainProcess(t *testing.T) {
 }
 
 func Q(p *party.HonestParty, ID []byte, value []byte, validation []byte) error {
+	fmt.Printf("[Party %d] enter Q\n", p.PID)
 	var L protobuf.BLockSetValue //L={(j,h)}
 	proto.Unmarshal(value, &L)
 
@@ -135,5 +137,6 @@ func Q(p *party.HonestParty, ID []byte, value []byte, validation []byte) error {
 			return err
 		}
 	}
+	fmt.Printf("[Party %d] Q verification success\n", p.PID)
 	return nil
 }

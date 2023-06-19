@@ -1,7 +1,6 @@
 package party
 
 import (
-	"fmt"
 	"sync"
 
 	kyberbls "github.com/drand/kyber-bls12381"
@@ -234,16 +233,16 @@ func (p *HonestParty) GetMsgSigTuple(index uint32) ([]byte, []byte) {
 	return p.ProofTuple[index].md, p.ProofTuple[index].sig
 }
 
-//this function is used for test initialization only
+// SetShare is used for test initialization only
 func (p *HonestParty) SetShare(share bls.Fr) {
 	p.Share = share
 }
 
-//this function is used for test initialization only
+// SetVCom is used for test initialization only
 func (p *HonestParty) SetVCom(vcom []bls.G1Point) {
 	// p.VCom = vcom
 	for i := 0; i < len(vcom); i++ {
 		bls.CopyG1(&p.VCom[i], &vcom[i])
 	}
-	fmt.Printf("party %v has set VCOM, VCom[0] = %s\n", p.PID, p.VCom[0].String())
+	//fmt.Printf("party %v has set VCOM, VCom[0] = %s\n", p.PID, p.VCom[0].String())
 }

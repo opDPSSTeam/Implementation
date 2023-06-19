@@ -49,9 +49,9 @@ func CallHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 		Data:   msgData,
 	}, p.PID) // sendsc CallHelp to all parties except itself
 	if err != nil {
-		fmt.Printf("Error in broadcast: %v\n", err)
+		fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] Error in broadcast: %v\n", p.PID, err)
 	} else {
-		fmt.Printf("[wpACSS.Recover] [Party %v] calls for help\n", p.PID)
+		fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] calls for help, Shelp: %v\n", p.PID, Shelp)
 	}
 }
 
@@ -62,9 +62,9 @@ func Help(p *party.HonestParty, ID []byte, F uint32, N uint32) {
 		var msgCallHelp protobuf.WpAcssCallHelp
 		err := proto.Unmarshal(m.Data, &msgCallHelp)
 		if err != nil {
-			fmt.Printf("[wpACSS.Recover] [Part %v] receive wpAcssCallHelp error: %v\n", p.PID, err)
+			fmt.Printf("[DPSS wpACSS.Recover] [New Part %v] receive wpAcssCallHelp error: %v\n", p.PID, err)
 		} else {
-			fmt.Printf("[wpACSS.Recover] [Party %v] receive WpAcssCallHelp from Party %v\n", p.PID, msgCallHelp.Caller)
+			fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] receive WpAcssCallHelp from [New Party %v]\n", p.PID, msgCallHelp.Caller)
 		}
 
 		Shelp := msgCallHelp.Indices
@@ -100,7 +100,7 @@ func Help(p *party.HonestParty, ID []byte, F uint32, N uint32) {
 		if !isEmpty {
 			data, err := proto.Marshal(msg)
 			if err != nil {
-				fmt.Printf("Error in marshal: %v\n", err)
+				fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] Error in marshal: %v\n", err, p.PID)
 			}
 
 			p.Send(&protobuf.Message{
@@ -109,7 +109,7 @@ func Help(p *party.HonestParty, ID []byte, F uint32, N uint32) {
 				Sender: p.PID,
 				Data:   data,
 			}, callerID)
-			fmt.Printf("[wpACSS.Recover] [Party %v] sends WpAcssHelp to Party %v\n", p.PID, callerID)
+			fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] sends WpAcssHelp to [New Party %v]\n", p.PID, callerID)
 		}
 	}
 }
@@ -138,11 +138,11 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 		var FLGContinue bool = false
 		for i := 0; i < lenRes; i++ {
 			if !vrfyRecCont(p, ID, F, res[i]) {
-				fmt.Printf("[wpACSS.Recover] [Party %v] verify the RecCont (dealerID: %v) from Party %v fail\n", p.PID, res[i].dealerID, m.Sender)
+				fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] verify the RecCont (dealerID: %v) from [New Party %v] fail\n", p.PID, res[i].dealerID, m.Sender)
 				FLGContinue = true
 				continue
 			}
-			fmt.Printf("[wpACSS.Recover] [Party %v] verify the RecCont (dealerID: %v) from Party %v success\n", p.PID, res[i].dealerID, m.Sender)
+			// fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] verify the RecCont (dealerID: %v) from [New Party %v] success\n", p.PID, res[i].dealerID, m.Sender)
 		}
 		//skip this message if verification fails
 		if FLGContinue {
@@ -194,10 +194,10 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 				var sdi bls.Fr
 				bls.SubModFr(&sdi, &sMaskedDI, &Fdi)
 				SrecMap[dealerID] = sdi
-				fmt.Printf("[wpACSS.Recover] [Party %v] recovered share from dealer %v\n", p.PID, dealerID)
+				fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] recovered share from dealer %v\n", p.PID, dealerID)
 				recoveredCtr++
 				if recoveredCtr == len(Shelp) {
-					fmt.Printf("[wpACSS.Recover] [Party %v] recovered all missing shares\n", p.PID)
+					fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] recovered all missing shares\n", p.PID)
 					return SrecMap
 				}
 			}
@@ -211,10 +211,10 @@ func decapsulateRes(m *protobuf.Message, pid uint32) ([]RecCont, error) {
 	var helpMsg protobuf.WpAcssHelp
 	err := proto.Unmarshal(m.Data, &helpMsg)
 	if err != nil {
-		fmt.Printf("[wpACSS.Recover] [Party %v] receive WpAcssHelp error: %v\n", pid, err)
+		fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] receive WpAcssHelp error: %v\n", pid, err)
 		return nil, err
 	} else {
-		fmt.Printf("[wpACSS.Recover] [Party %v] receive WpAcssHelp from Party %v\n", pid, m.Sender)
+		fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] receive WpAcssHelp from Party %v\n", pid, m.Sender)
 	}
 	lenRes := len(helpMsg.Res)
 	var res = make([]RecCont, lenRes)
@@ -276,11 +276,11 @@ func recContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, call
 
 func vrfyRecCont(p *party.HonestParty, ID []byte, F uint32, recCont RecCont) bool {
 	if bls.EqualZero(&recCont.sMasked) {
-		fmt.Printf("[wpACSS.Recover] [Party %v] verify recContrib fail: sMasked is zero\n", p.PID)
+		fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] verify recContrib fail: sMasked is zero\n", p.PID)
 		return false
 	}
 	if bls.EqualG1(&recCont.DPRFContribF, &bls.GenG1) {
-		fmt.Printf("[wpACSS.Recover] [Party %v] verify recContrib fail: DPRFContribF is zero\n", p.PID)
+		fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] verify recContrib fail: DPRFContribF is zero\n", p.PID)
 		return false
 	}
 
@@ -289,14 +289,14 @@ func vrfyRecCont(p *party.HonestParty, ID []byte, F uint32, recCont RecCont) boo
 
 	p.MutexKZG.Lock()
 	if !p.KZG.CheckProofSingle(&recCont.piHelp.Cmask, &recCont.piHelp.wiMask, &FrI, &recCont.sMasked) {
-		fmt.Printf("[wpACSS.Recover] [Party %v] verify recContrib fail: sMasked is not valid\n", p.PID)
+		fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] verify recContrib fail: sMasked is not valid\n", p.PID)
 		p.MutexKZG.Unlock()
 		return false
 	}
 	p.MutexKZG.Unlock()
 
 	if !dprf.VrfyContrib(recCont.DPRFContribF, &recCont.piHelp.piDPRF) {
-		fmt.Printf("[wpACSS.Recover] [Party %v] verify recContrib fail: DPRFContribF is not valid\n", p.PID)
+		fmt.Printf("[DPSS wpACSS.Recover] [New Party %v] verify recContrib fail: DPRFContribF is not valid\n", p.PID)
 		return false
 	}
 

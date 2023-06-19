@@ -3,7 +3,6 @@ package dpss
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 
 	kyberbls "github.com/drand/kyber-bls12381"
@@ -81,6 +80,8 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	index := make([]bls.Fr, F+1)
 	ctr := uint32(0)
 	getVComChan := make(chan bool)
+	ifGetVCom := false
+	isInterpolated := false
 
 	//wait for commitment pieces from old parties
 	go func() {
@@ -89,31 +90,35 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 			case <-ctx.Done():
 				return
 			case m := <-p.GetMessage("DpssCom", ID):
-				var DpssComMsg protobuf.DpssCom
-				err := proto.Unmarshal(m.Data, &DpssComMsg)
-				if err != nil {
-					fmt.Printf("[DPSS Commit] [New Party %v] receive DpssCom error: %v\n", p.PID, err)
-				}
-				if !verifyComMsg(&DpssComMsg) {
-					fmt.Printf("[DPSS Commit] [New Party %v] verify DpssCom from [Old Party %v] error: invalid commitment or value\n", p.PID, m.Sender)
-					continue //wait for the next commitment
-				}
-				Gsi, _ := bls.FromCompressedG1(DpssComMsg.Gsi)
-				fmt.Printf("[New Party %v] ctr: %v\n", p.PID, ctr)
-				bls.CopyG1(&vg[ctr], Gsi)
-				bls.AsFr(&index[ctr], uint64(m.Sender))
-				ctr++
-				if ctr > F {
-					fmt.Printf("[New Party %v] ctr > F: %v\n", p.PID, ctr)
-
-					for i := uint32(0); i < N; i++ {
-						vcom[i] = p.InterpolateComOrWitByKnownIndexes(F, i, index, vg)
+				if !isInterpolated {
+					var DpssComMsg protobuf.DpssCom
+					err := proto.Unmarshal(m.Data, &DpssComMsg)
+					if err != nil {
+						fmt.Printf("[DPSS Commit] [New Party %v] receive DpssCom error: %v\n", p.PID, err)
+					} else {
+						fmt.Printf("[DPSS Commit] [New Party %v] receive DpssCom from [Old Party %v]\n", p.PID, m.Sender)
 					}
-					fmt.Printf("[DPSS Commit] [New Party %v] vcom[0]: %v\n", p.PID, vcom[0].String())
-					p.SetVCom(vcom)
-					fmt.Printf("[DPSS Commit] [New Party %v] has interpolated the commitments for all old shares\n", p.PID)
-					getVComChan <- true
-					return
+					if !verifyComMsg(&DpssComMsg) {
+						fmt.Printf("[DPSS Commit] [New Party %v] verify DpssCom from [Old Party %v] error: invalid commitment or value\n", p.PID, m.Sender)
+						continue //wait for the next commitment
+					}
+					Gsi, _ := bls.FromCompressedG1(DpssComMsg.Gsi)
+					//fmt.Printf("[New Party %v] ctr: %v\n", p.PID, ctr)
+					bls.CopyG1(&vg[ctr], Gsi)
+					bls.AsFr(&index[ctr], uint64(m.Sender))
+					ctr++
+					if ctr > F {
+						//fmt.Printf("[New Party %v] ctr > F: %v\n", p.PID, ctr)
+						for i := uint32(0); i < N; i++ {
+							vcom[i] = p.InterpolateComOrWitByKnownIndexes(F, i, index, vg)
+						}
+						//fmt.Printf("[DPSS Commit] [New Party %v] vcom[0]: %v\n", p.PID, vcom[0].String())
+						p.SetVCom(vcom)
+						fmt.Printf("[DPSS Commit] [New Party %v] has interpolated the commitments for all old shares\n", p.PID)
+						getVComChan <- true
+						isInterpolated = true
+						//return
+					}
 				}
 			}
 		}
@@ -149,7 +154,9 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 
 				Gsi := parseGsi(DpssProofMsg.M)
 				//wait for the interpolation of all old shares' commitments
-				<-getVComChan
+				if !ifGetVCom {
+					ifGetVCom = <-getVComChan
+				}
 				if !bls.EqualG1(Gsi, &p.VCom[m.Sender]) {
 					fmt.Printf("[DPSS Verify] [New Party %v] verify DpssProof from [Old Party %v] error: Gsi != VCom[%v], Gsi = %s, VCom[%v] = %s\n", p.PID, m.Sender, m.Sender, Gsi.String(), m.Sender, p.VCom[m.Sender].String())
 					continue //wait for the next proof
@@ -158,8 +165,10 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 				fmt.Printf("[DPSS Verify] [New Party %v] receive valid DpssProof from [Old Party %v]\n", p.PID, m.Sender)
 
 				proofCtr := p.SetMsgSigTuples(DpssProofMsg.M, DpssProofMsg.Sig, m.Sender)
-				MvbaInMsg.Tuple[proofCtr-1].Index = m.Sender
-				MvbaInMsg.Tuple[proofCtr-1].Md, MvbaInMsg.Tuple[proofCtr-1].Sig = p.GetMsgSigTuple(m.Sender)
+				if uint32(proofCtr) <= F+1 {
+					MvbaInMsg.Tuple[proofCtr-1].Index = m.Sender
+					MvbaInMsg.Tuple[proofCtr-1].Md, MvbaInMsg.Tuple[proofCtr-1].Sig = p.GetMsgSigTuple(m.Sender)
+				}
 
 				//MVBA
 				if !MVBAsent && uint32(proofCtr) >= F+1 {
@@ -178,16 +187,17 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	var MvbaRes = new(protobuf.MvbaIn)
 	err := proto.Unmarshal(res, MvbaRes)
 	if err != nil {
-		fmt.Printf("[DPSS MVBA] [New Party %v] parse Mvba Out error: %v\n", p.PID, err)
+		fmt.Printf("[DPSS MVBA] [New Party %v] parse MVBA output error: %v\n", p.PID, err)
 	}
 	I := make([]uint32, len(MvbaRes.Tuple))
 	Shelp := make([]uint32, 0)
 	for i := 0; i < len(MvbaRes.Tuple); i++ {
 		I[i] = MvbaRes.Tuple[i].Index
-		if p.IfReceivedVPiTuples(I[i]) {
+		if !p.IfReceivedVPiTuples(I[i]) {
 			Shelp = append(Shelp, I[i])
 		}
 	}
+	fmt.Printf("[DPSS MVBA] [New Party %v] MVBA output: %v\n", p.PID, I)
 
 	var recoverResChan = make(chan map[uint32]bls.Fr, 1)
 	var SrecMap = make(map[uint32]bls.Fr) //maps dealerID to the recovered s_{d,i}
@@ -196,18 +206,22 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 		if len(Shelp) > 0 {
 			wpACSS.CallHelp(p, ID, F, N, Shelp)
 			recoverResChan <- wpACSS.WaitHelp(p, ID, F, N, Shelp) //wait for others' help
+		} else {
+			fmt.Printf("[DPSS Recover] [New Party %v] no help needed\n", p.PID)
 		}
 	}()
 
 	go wpACSS.Help(p, ID, F, N) //answer others' help
 
-	SrecMap = <-recoverResChan //wait for the recovery result
+	if len(Shelp) > 0 {
+		SrecMap = <-recoverResChan //wait for the recovery result
+	}
 
 	//refresh
 	iRefresh := make([]bls.Fr, F+1)
 	vRefresh := make([]bls.Fr, F+1)
 	for i, j := range I {
-		bls.AsFr(&iRefresh[i], uint64(j))
+		bls.AsFr(&iRefresh[i], uint64(j+1))
 		if _, ok := SrecMap[j]; ok {
 			vRefresh[i] = SrecMap[j]
 		} else {
@@ -232,11 +246,13 @@ func Pmvba(p *party.HonestParty, ID []byte, value []byte, validation []byte) err
 	for i := 0; i < len(MvbaMsg.Tuple); i++ {
 		err := blsScheme.Verify(p.SigPK.Commit(), MvbaMsg.Tuple[i].Md, MvbaMsg.Tuple[i].Sig)
 		if err != nil {
-			return fmt.Errorf("invalid signature: %v", err)
+			fmt.Printf("[DPSS MVBA] [New Party %v] invalid signature: %v\n", p.PID, err)
+			return fmt.Errorf("[DPSS MVBA] [New Party %v] invalid signature: %v", p.PID, err)
 		}
 		Gsi := parseGsi(MvbaMsg.Tuple[i].Md)
 		if !bls.EqualG1(Gsi, &p.VCom[MvbaMsg.Tuple[i].Index]) {
-			return errors.New("invalid Gsi")
+			fmt.Printf("[DPSS MVBA] [New Party %v] invalid Gsi\n", p.PID)
+			return fmt.Errorf("[DPSS MVBA] [New Party %v] invalid Gsi", p.PID)
 		}
 	}
 	return nil
