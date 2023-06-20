@@ -120,6 +120,7 @@ type HonestParty struct {
 	MutexKZG *sync.Mutex
 
 	Share       bls.Fr        //share of this party
+	Gs          bls.G1Point   //commitment of the original share (invariant)
 	DSKi        []bls.Fr      //dprf secret key shares
 	DVKi        []bls.G1Point //dprf verification key shares
 	ProofTuple  []MsgSigTuple //message-signature tuples from other nodes
@@ -182,6 +183,7 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 		MutexKZG: &mutexKZG,
 
 		Share:       bls.ZERO,
+		Gs:          bls.GenG1,
 		DSKi:        make([]bls.Fr, N),
 		DVKi:        make([]bls.G1Point, N),
 		ProofTuple:  make([]MsgSigTuple, N),
@@ -245,4 +247,12 @@ func (p *HonestParty) SetVCom(vcom []bls.G1Point) {
 		bls.CopyG1(&p.VCom[i], &vcom[i])
 	}
 	//fmt.Printf("party %v has set VCOM, VCom[0] = %s\n", p.PID, p.VCom[0].String())
+}
+
+func (p *HonestParty) SetGs(gs *bls.G1Point) {
+	bls.CopyG1(&p.Gs, gs)
+}
+
+func (p *HonestParty) GetVCom(index uint32) *bls.G1Point {
+	return &p.VCom[index]
 }

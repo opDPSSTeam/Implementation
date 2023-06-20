@@ -133,7 +133,9 @@ func TestDpssNew(t *testing.T) {
 	}
 
 	var secret bls.Fr
+	var Gs bls.G1Point
 	bls.AsFr(&secret, uint64(12345))
+	bls.MulG1(&Gs, &bls.GenG1, &secret)
 
 	ID := utils.IntToBytes(1) //ID should be generated in this way (constraints in the implementation of MVBA)
 
@@ -149,6 +151,7 @@ func TestDpssNew(t *testing.T) {
 	for i := uint32(0); i < N; i++ {
 		p[i].SetShare(shares[i+1])
 		p[i].SetVCom(vcom)
+		p[i].SetGs(&Gs)
 	}
 
 	newShares := make([]bls.Fr, N)
@@ -181,7 +184,15 @@ func TestDpssNew(t *testing.T) {
 	}
 	poly := polyring.LagrangeInterpolate(F, pos[:F+2], newShares[:F+2])
 	fmt.Println("poly: ", party.PolyToString(poly))
-	// assert.True(t, bls.EqualFr(&shares[1], &poly[0]), "Reconstruct secret from the newshares fail")
+	assert.True(t, bls.EqualFr(&secret, &poly[0]), "Reconstruct secret from the newshares fail")
+
+	//check the new commitments vNew
+	var tmpGs bls.G1Point
+	for i := uint32(0); i < N; i++ {
+		bls.MulG1(&tmpGs, &bls.GenG1, &newShares[i])
+		//here we take pNext[2]'s new commitments as an example
+		assert.True(t, bls.EqualG1(&tmpGs, pNext[2].GetVCom(i)), "GenNewCom fail")
+	}
 }
 
 func TestSplitMd(t *testing.T) {

@@ -194,3 +194,22 @@ message MvbaTuple{
 message MvbaIn{
   repeated MvbaTuple tuple = 1;
 }
+
+message NewCom{
+  bytes Gsi =1;
+}
+
+message Err{
+  bytes err = 1;
+}
+
+message AuxCont{
+  uint32 k = 1;
+  bytes Gski = 2;
+  bytes Cvcomk = 3;
+  bytes piVcomki = 4;
+}
+
+message Aux{
+  repeated AuxCont cont = 1;
+}
