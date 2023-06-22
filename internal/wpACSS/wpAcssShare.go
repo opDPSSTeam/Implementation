@@ -86,9 +86,9 @@ func WpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 			}, uint32(i)) //send to party i
 			if err != nil {
 				fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare error: %v\n", p.PID, err)
-			} else {
-				fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare to [New Party %v] done\n", p.PID, i)
-			}
+			} //else {
+			// 	fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare to [New Party %v] done\n", p.PID, i)
+			// }
 		} else {
 			err := p.SendToNextCommittee(&protobuf.Message{
 				Type:   "wpAcssShare",
@@ -98,11 +98,12 @@ func WpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 			}, uint32(i)) //send to party i
 			if err != nil {
 				fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare error: %v\n", p.PID, err)
-			} else {
-				fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare to [New Party %v] done\n", p.PID, i)
-			}
+			} //else {
+			// 	fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare to [New Party %v] done\n", p.PID, i)
+			// }
 		}
 	}
+	fmt.Printf("[DPSS wpACSS] [Old Party %v] wpACSS.Share done\n", p.PID)
 
 	//this block is to verify the correctness of Encapsulate and Decapsulate messages
 	/*
@@ -196,9 +197,9 @@ func WpAcssShareEcho(p *party.HonestParty, isNew bool, ID []byte) (party.VShare,
 		}, senderID)
 		if err != nil {
 			fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho error: %v\n", p.PID, err)
-		} else {
-			fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho to [Old Party %v] done\n", p.PID, senderID)
-		}
+		} //else {
+		// 	fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho to [Old Party %v] done\n", p.PID, senderID)
+		// }
 	} else {
 		err = p.Send(&protobuf.Message{
 			Type:   "wpAcssEcho",
@@ -208,9 +209,9 @@ func WpAcssShareEcho(p *party.HonestParty, isNew bool, ID []byte) (party.VShare,
 		}, senderID)
 		if err != nil {
 			fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho error: %v\n", p.PID, err)
-		} else {
-			fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho to [Old Party %v] done\n", p.PID, senderID)
-		}
+		} //else {
+		// 	fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho to [Old Party %v] done\n", p.PID, senderID)
+		// }
 	}
 
 	p.SetVPTuples(vDec, pDec, senderID)

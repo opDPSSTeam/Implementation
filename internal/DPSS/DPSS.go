@@ -79,7 +79,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	vg := make([]bls.G1Point, F+1)
 	index := make([]bls.Fr, F+1)
 	ctr := uint32(0)
-	getVComChan := make(chan bool)
+	getVComChan := make(chan bool, 1)
 	ifGetVCom := false
 	isInterpolated := false
 
@@ -95,24 +95,21 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 					err := proto.Unmarshal(m.Data, &DpssComMsg)
 					if err != nil {
 						fmt.Printf("[DPSS Commit] [New Party %v] receive DpssCom error: %v\n", p.PID, err)
-					} else {
-						fmt.Printf("[DPSS Commit] [New Party %v] receive DpssCom from [Old Party %v]\n", p.PID, m.Sender)
-					}
+					} //else {
+					// 	fmt.Printf("[DPSS Commit] [New Party %v] receive DpssCom from [Old Party %v]\n", p.PID, m.Sender)
+					// }
 					if !verifyComMsg(&DpssComMsg) {
 						fmt.Printf("[DPSS Commit] [New Party %v] verify DpssCom from [Old Party %v] error: invalid commitment or value\n", p.PID, m.Sender)
 						continue //wait for the next commitment
 					}
 					Gsi, _ := bls.FromCompressedG1(DpssComMsg.Gsi)
-					//fmt.Printf("[New Party %v] ctr: %v\n", p.PID, ctr)
 					bls.CopyG1(&vg[ctr], Gsi)
 					bls.AsFr(&index[ctr], uint64(m.Sender+1))
 					ctr++
 					if ctr > F {
-						//fmt.Printf("[New Party %v] ctr > F: %v\n", p.PID, ctr)
 						for i := uint32(0); i < N; i++ {
 							vcom[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, index, vg)
 						}
-						//fmt.Printf("[DPSS Commit] [New Party %v] vcom[0]: %v\n", p.PID, vcom[0].String())
 						p.SetVCom(vcom)
 						Gs := p.InterpolateComOrWitByKnownIndexes(F, 0, index, vg)
 						p.SetGs(&Gs)
@@ -166,7 +163,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 						continue //wait for the next proof
 					}
 
-					fmt.Printf("[DPSS Verify] [New Party %v] receive valid DpssProof from [Old Party %v]\n", p.PID, m.Sender)
+					// fmt.Printf("[DPSS Verify] [New Party %v] receive valid DpssProof from [Old Party %v]\n", p.PID, m.Sender)
 
 					proofCtr := p.SetMsgSigTuples(DpssProofMsg.M, DpssProofMsg.Sig, m.Sender)
 					if uint32(proofCtr) <= F+1 {
@@ -183,7 +180,6 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 					}
 				}
 			}
-
 		}
 	}()
 
@@ -198,9 +194,21 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	Shelp := make([]uint32, 0)
 	for i := 0; i < len(MvbaRes.Tuple); i++ {
 		I[i] = MvbaRes.Tuple[i].Index
+
+		/* You may set Shelp=I to test wpACSS.Recover.
+		To achieve this, you may remove the "!" before p.IfReceivedVPiTuples */
 		if !p.IfReceivedVPiTuples(I[i]) {
 			Shelp = append(Shelp, I[i])
 		}
+
+		/* The following lines are used to test pessimistic path in GenNewCom, in the case of N=7, F=2.
+		To use these lines, you should also let GenNewCom enter pessimistic path, by adding a "!" operation before bls.EqualG1 (around line 356) */
+		// if p.PID == 0 || p.PID == 1 {
+		// 	Shelp = []uint32{I[0]}
+		// }
+		// if p.PID == 2 || p.PID == 3 {
+		// 	Shelp = []uint32{I[1]}
+		// }
 	}
 	fmt.Printf("[DPSS MVBA] [New Party %v] MVBA output: %v\n", p.PID, I)
 
@@ -235,6 +243,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	}
 	refreshedPoly := polyring.LagrangeInterpolate(F, iRefresh, vRefresh)
 	newShare := refreshedPoly[0]
+	fmt.Printf("[DPSS Recover] [New Party %v] refresh done\n", p.PID)
 
 	GenNewCom(ctx, p, ID, F, N, newShare, Shelp, I)
 	return newShare
@@ -302,6 +311,7 @@ func parseGsi(m []byte) *bls.G1Point {
 }
 
 func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N uint32, newShare bls.Fr, Shelp []uint32, MVBAOutput []uint32) {
+	endSignal := make(chan bool, 1)
 	var Gsi bls.G1Point
 	bls.MulG1(&Gsi, &bls.GenG1, &newShare)
 	var msgNewCom = new(protobuf.NewCom)
@@ -321,6 +331,7 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 		fmt.Printf("[DPSS GenNewCom] [New Party %v] broadcast NewCom error: %v\n", p.PID, err)
 		return
 	}
+	fmt.Printf("[DPSS GenNewCom] [New Party %v] broadcast NewCom\n", p.PID)
 
 	var newComCtr = uint32(0)
 	newComList := make([]bls.G1Point, F+1)
@@ -341,16 +352,16 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 	}
 
 	newGs := p.InterpolateComOrWitByKnownIndexes(F, 0, newComIndex, newComList)
-
+	//you may add a "!" operation before bls.EqualG1 to test the pessmistic path
 	if bls.EqualG1(&newGs, &p.Gs) {
 		fmt.Printf("[DPSS GenNewCom] [New Party %v] enter the optimistic path\n", p.PID)
 		vNew := make([]bls.G1Point, N)
 		for i := uint32(0); i < N; i++ {
 			vNew[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, newComIndex, newComList)
 		}
-		fmt.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares done\n", p.PID)
+		fmt.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (optimistic path)\n", p.PID)
 		p.SetVCom(vNew)
-		// return vNew
+		endSignal <- true
 	} else {
 		fmt.Printf("[DPSS GenNewCom] [New Party %v] enter the pessimistic path\n", p.PID)
 
@@ -363,38 +374,191 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 			return
 		}
 		err = p.Broadcast(&protobuf.Message{
-			Type:   "Err",
+			Type:   "DpssErr",
 			Id:     ID,
 			Sender: p.PID,
 			Data:   data,
 		})
 		if err != nil {
-			fmt.Printf("[DPSS GenNewCom] [New Party %v] broadcast Err error: %v\n", p.PID, err)
+			fmt.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr error: %v\n", p.PID, err)
 			return
 		}
-		//wait for Aux messages
-		// go func() {
-		// 	Gskj := make([]bls.G1Point, F+1)
-		// 	GskjIndex := make([]bls.Fr, F+1)
-		// 	for {
-		// 		m := <-p.GetMessage("Aux", ID)
-		// 		var msg = new(protobuf.Aux)
-		// 		err := proto.Unmarshal(m.Data, msg)
-		// 		if err != nil {
-		// 			fmt.Printf("[DPSS GenNewCom] [New Party %v] parse Aux error: %v\n", p.PID, err)
-		// 			continue
-		// 		}
-		// 		if verifyAux(msg) {
+		fmt.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr\n", p.PID)
 
-		// 		}
-		// 	}
-		// }()
+		//wait for Aux messages. Pj is the sender, who sends the commitments to s_k,j
+		kGsMap := make(map[uint32][]bls.G1Point) //maps the sender of Aux message to the Gs elements in it
+		newGsMap := make(map[uint32]bls.G1Point) //records the interpolated new Gs
+		newGsCtr := uint32(0)
+		vNew := make([]bls.G1Point, N)
+
+		jListMap := make(map[uint32][]uint32)    //maps k to received j
+		jGsMap := make(map[uint32][]bls.G1Point) //maps k to received Gsj
+		jCtrMap := make(map[uint32]uint32)       //maps k to the number of received Gsj
+		jMissingMap := make(map[uint32][]uint32) //maps j to the missing k
+
+		for {
+			m := <-p.GetMessage("Aux", ID)
+			var Auxmsg = new(protobuf.Aux)
+			err := proto.Unmarshal(m.Data, Auxmsg)
+			if err != nil {
+				fmt.Printf("[DPSS GenNewCom] [New Party %v] parse Aux error: %v\n", p.PID, err)
+				continue
+			}
+
+			isValid, kList, kGsList := verifyAux(Auxmsg)
+			if !isValid {
+				fmt.Printf("[DPSS GenNewCom] [New Party %v] receive invalid Aux message from [New Party %v]\n", p.PID, m.Sender)
+				continue
+			}
+			kGsMap[m.Sender] = kGsList
+
+			// if there are sufficient elements in Aux message from Pj (i.e., Pj has no missing shares), interpolate the new Gs
+			if uint32(len(kList)) > F {
+				var kListFr = make([]bls.Fr, F+1)
+				for i := uint32(0); i < F+1; i++ {
+					bls.AsFr(&kListFr[i], uint64(kList[i]+1))
+				}
+				newGsMap[m.Sender] = p.InterpolateComOrWitByKnownIndexes(F, 0, kListFr, kGsList)
+				newGsCtr++
+			} else {
+				// record the missing k
+				jMissingMap[m.Sender] = substractSet(MVBAOutput, kList)
+			}
+
+			// record the received j and Gs_k,j for each k
+			for index, k := range kList {
+				if _, ok := jListMap[k]; !ok {
+					jListMap[k] = make([]uint32, 0)
+					jGsMap[k] = make([]bls.G1Point, 0)
+					jCtrMap[k] = 0
+				}
+				jListMap[k] = append(jListMap[k], m.Sender)
+				jGsMap[k] = append(jGsMap[k], kGsList[index])
+				jCtrMap[k]++
+
+				//check if there are enough Gs_k,* to interpolate Gs_k,j
+				if jCtrMap[k] == F+1 {
+					for j, missingList := range jMissingMap {
+						if containsUint32(missingList, k) {
+							//interpolate at j
+							indexList := make([]bls.Fr, F+1)
+							GsList := jGsMap[k]
+							ctr := 0
+							for _, sender := range jListMap[k] {
+								if sender != j {
+									bls.AsFr(&indexList[ctr], uint64(sender+1))
+									ctr++
+								}
+							}
+							newGsMap[j] = p.InterpolateComOrWitByKnownIndexes(F, j+1, indexList, GsList)
+							newGsCtr++
+						}
+					}
+				}
+			}
+
+			if newGsCtr > F {
+				fmt.Printf("[DPSS GenNewCom] [New Party %v] receive enough new Gs, newGsCtr=%v\n", p.PID, newGsCtr)
+				indexList := make([]bls.Fr, N)
+				newGsList := make([]bls.G1Point, N)
+				ctr := 0
+				for i := uint32(0); i < N; i++ {
+					if newGs, ok := newGsMap[i]; ok {
+						bls.AsFr(&indexList[ctr], uint64(i+1))
+						bls.CopyG1(&newGsList[ctr], &newGs)
+						ctr++
+					}
+				}
+				for i := uint32(0); i < N; i++ {
+					vNew[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, indexList[:F+1], newGsList[:F+1])
+				}
+				fmt.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (pessimistic path)\n", p.PID)
+				p.SetVCom(vNew)
+				endSignal <- true
+				break
+			}
+		}
 	}
 
 	//wait to help others
+	go func() {
+		AuxLen := len(MVBAOutput) - len(Shelp)
+		var AuxMsg = new(protobuf.Aux)
+		if AuxLen > 0 {
+			Ii := substractSet(MVBAOutput, Shelp)
+			AuxMsg.Cont = make([]*protobuf.AuxCont, AuxLen)
+			var tmpGs bls.G1Point
+			for index, k := range Ii {
+				AuxMsg.Cont[index] = new(protobuf.AuxCont)
+				AuxMsg.Cont[index].K = k
+				bls.MulG1(&tmpGs, &bls.GenG1, &p.GetVShare(k).S)
+				AuxMsg.Cont[index].Gs = bls.ToCompressedG1(&tmpGs)
+				AuxMsg.Cont[index].Cvcom = p.GetPiShare(k).Cvcom
+				AuxMsg.Cont[index].PiVcom = new(protobuf.PiVcomMerkle)
+				AuxMsg.Cont[index].PiVcom.Path = p.GetPiShare(k).PiVcom.Path
+				AuxMsg.Cont[index].PiVcom.Indicator = p.GetPiShare(k).PiVcom.Indicator
+			}
+		}
+
+		for {
+			m := <-p.GetMessage("DpssErr", ID)
+			// AuxLen == 0 means it cannot help others
+			if AuxLen > 0 {
+				data, err = proto.Marshal(AuxMsg)
+				if err != nil {
+					fmt.Printf("[DPSS GenNewCom] [New Party %v] marshal Aux error: %v\n", p.PID, err)
+					return
+				}
+				err = p.Send(&protobuf.Message{
+					Type:   "Aux",
+					Id:     ID,
+					Sender: p.PID,
+					Data:   data,
+				}, m.Sender)
+			}
+		}
+	}()
+
+	//wait for the end signal
+	<-endSignal
 
 }
 
-func verifyAux(msg *protobuf.Aux) bool {
-	return true
+func verifyAux(AuxMsg *protobuf.Aux) (bool, []uint32, []bls.G1Point) {
+	kList := make([]uint32, 0)
+	GsList := make([]bls.G1Point, 0)
+	for i := 0; i < len(AuxMsg.Cont); i++ {
+		if vectorcommitment.VerifyMerkleTreeProof(AuxMsg.Cont[i].Cvcom, AuxMsg.Cont[i].PiVcom.Path, AuxMsg.Cont[i].PiVcom.Indicator, AuxMsg.Cont[i].Gs) {
+			kList = append(kList, AuxMsg.Cont[i].K)
+			tmpGs, _ := bls.FromCompressedG1(AuxMsg.Cont[i].Gs)
+			GsList = append(GsList, *tmpGs)
+		} else {
+			return false, []uint32{0}, []bls.G1Point{}
+		}
+	}
+	return true, kList, GsList
+}
+
+func substractSet(a, b []uint32) []uint32 {
+	m := make(map[uint32]bool)
+	for _, num := range b {
+		m[num] = true
+	}
+
+	var result []uint32
+	for _, num := range a {
+		if _, ok := m[num]; !ok {
+			result = append(result, num) //this is not optimal if we know the size of result, but the difference is negligible
+		}
+	}
+	return result
+}
+
+func containsUint32(list []uint32, num uint32) bool {
+	for _, v := range list {
+		if v == num {
+			return true
+		}
+	}
+	return false
 }

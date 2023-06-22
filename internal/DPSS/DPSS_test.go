@@ -107,8 +107,8 @@ func TestDpssNew(t *testing.T) {
 	portList := []string{"8880", "8881", "8882", "8883", "8884", "8885", "8886", "8887", "8888", "8889"}
 	ipListNext := []string{"127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"}
 	portListNext := []string{"8890", "8891", "8892", "8893", "8894", "8895", "8896", "8897", "8898", "8899"}
-	N := uint32(4)
-	F := uint32(1)
+	N := uint32(7)
+	F := uint32(2)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	skNew, pkNew := party.SigKeyGen(N, 2*F+1)
 
@@ -174,6 +174,7 @@ func TestDpssNew(t *testing.T) {
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
 			newShares[i] = DpssNew(ctx, pNext[i], ID, F, N)
+			fmt.Printf("[DPSS] [New Party %v] exit\n", i)
 			wg.Done()
 		}(i)
 	}
@@ -217,4 +218,11 @@ func TestSplitMd(t *testing.T) {
 	res := bytes.Split(md2, []byte("||"))
 	g3, _ := bls.FromCompressedG1(res[1])
 	fmt.Printf("bls.EqualG1(&g1, g3): %v\n", bls.EqualG1(&g1, g3))
+}
+
+func TestSubstractSet(t *testing.T) {
+	a := []uint32{1, 2, 3, 4, 5}
+	b := []uint32{1, 2, 3}
+	c := substractSet(a, b)
+	fmt.Printf("c: %v\n", c)
 }
