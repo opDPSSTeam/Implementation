@@ -13,44 +13,43 @@ import (
 	"github.com/opDPSSTeam/DPSS/pkg/core"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 	"github.com/opDPSSTeam/DPSS/pkg/reedsolomon"
-	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
+	"github.com/opDPSSTeam/DPSS/pkg/utils"
 
 	kyberbls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/sign/tbls"
+	kbls "github.com/kilic/bls12-381"
 	"github.com/vivint/infectious"
 )
 
 //PDSender is run by senders of provable dispersal subprotocols
-func PDSender(p *party.HonestParty, ID []byte, value []byte) ([]byte, []byte) {
+func PDSender(p *party.HonestParty, ID []byte, value []byte) (string, []byte) {
 	//rs encode
 	rsCoder := reedsolomon.NewRScoder(int(p.F+1), int(p.N))
 	shares := rsCoder.Encode(value)
 
 	//commit
-	m := make([][]byte, p.N)
+	vec := make([]kbls.Fr, p.N)
 	for i := uint32(0); i < p.N; i++ {
-		m[i] = shares[i].Data
+		vec[i] = *utils.HashByteToFr(shares[i].Data)
 	}
-	vCommiter, _ := vectorcommitment.NewMerkleTree(m)
-	vc := vCommiter.GetMerkleTreeRoot()
+	vc := p.VC.Commit(vec)
 
 	//open and send
-	for i := uint32(0); i < p.N; i++ {
-		proof1, proof2 := vCommiter.GetMerkleTreeProof(int(i))
+	for i := 0; uint32(i) < p.N; i++ {
+		proof := p.VC.Open(vec, i)
 		storeMessage := core.Encapsulation("Store", ID, p.PID, &protobuf.Store{
-			Vc:     vc,
-			Shard:  m[i],
-			Proof1: proof1,
-			Proof2: proof2,
+			Vc:    vc,
+			Shard: shares[i].Data,
+			Proof: proof,
 		})
-		p.Send(storeMessage, i)
+		p.Send(storeMessage, uint32(i))
 	}
 
 	sigs := [][]byte{}
 	var buf bytes.Buffer
 	buf.Write([]byte("Stored"))
 	buf.Write(ID)
-	buf.Write(vc)
+	buf.Write([]byte(vc))
 	sm := buf.Bytes()
 	tblsScheme := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite())
 
@@ -60,7 +59,7 @@ func PDSender(p *party.HonestParty, ID []byte, value []byte) ([]byte, []byte) {
 		payload := core.Decapsulation("Stored", m).(*protobuf.Stored)
 
 		sigs = append(sigs, payload.Sigshare)
-		if len(sigs) > int(2*p.F) {
+		if uint32(len(sigs)) > 2*p.F {
 			signature, _ := tblsScheme.Recover(p.SigPK, sm, sigs, int(2*p.F+1), int(p.N))
 			return vc, signature //lock
 		}
@@ -68,19 +67,19 @@ func PDSender(p *party.HonestParty, ID []byte, value []byte) ([]byte, []byte) {
 }
 
 //PDReceiver is run by receivers of provable dispersal subprotocols
-func PDReceiver(p *party.HonestParty, sender uint32, ID []byte) ([]byte, []byte, [][]byte, []int64, bool) {
+func PDReceiver(p *party.HonestParty, sender uint32, ID []byte) (string, []byte, string, bool) {
 	m := <-p.GetMessage("Store", ID)
 
 	payload := (core.Decapsulation("Store", m)).(*protobuf.Store)
-	ok := vectorcommitment.VerifyMerkleTreeProof(payload.Vc, payload.Proof1, payload.Proof2, payload.Shard)
+	ok := p.VC.Verify(payload.Vc, *utils.HashByteToFr(payload.Shard), int(p.PID), payload.Proof)
 	if !ok { //sender is dishonest
-		return nil, nil, nil, nil, false
+		return "", nil, "", false
 	}
 
 	var buf bytes.Buffer
 	buf.Write([]byte("Stored"))
 	buf.Write(ID)
-	buf.Write(payload.Vc)
+	buf.Write([]byte(payload.Vc))
 	sm := buf.Bytes()
 	sigShare, _ := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite()).Sign(p.SigSK, sm) //sign("Stored"||ID||vc)
 
@@ -89,17 +88,16 @@ func PDReceiver(p *party.HonestParty, sender uint32, ID []byte) ([]byte, []byte,
 	})
 	p.Send(storedMessage, sender)
 
-	return payload.Vc, payload.Shard, payload.Proof1, payload.Proof2, true
+	return payload.Vc, payload.Shard, payload.Proof, true
 
 }
 
 //Recast is run by all parties of recast subprotocols
-func Recast(p *party.HonestParty, ID []byte, leader uint32, vc []byte, shard []byte, proof1 [][]byte, proof2 []int64) ([]byte, bool) {
+func Recast(p *party.HonestParty, ID []byte, leader uint32, vc string, shard []byte, proof string) ([]byte, bool) {
 	if shard != nil {
 		recastMessage := core.Encapsulation("Recast", ID, p.PID, &protobuf.Recast{
-			Shard:  shard,
-			Proof1: proof1,
-			Proof2: proof2,
+			Shard: shard,
+			Proof: proof,
 		})
 		p.Broadcast(recastMessage)
 	}
@@ -110,7 +108,7 @@ func Recast(p *party.HonestParty, ID []byte, leader uint32, vc []byte, shard []b
 	for {
 		m := <-p.GetMessage("Recast", ID)
 		payload := (core.Decapsulation("Recast", m)).(*protobuf.Recast)
-		ok := vectorcommitment.VerifyMerkleTreeProof(vc, payload.Proof1, payload.Proof2, payload.Shard)
+		ok := p.VC.Verify(vc, *utils.HashByteToFr(payload.Shard), int(m.Sender), payload.Proof)
 		if ok {
 			shares = append(shares, infectious.Share{
 				Data:   payload.Shard,
@@ -124,13 +122,12 @@ func Recast(p *party.HonestParty, ID []byte, leader uint32, vc []byte, shard []b
 
 				tempShares := rsCoder.Encode(value) //re-encode
 
-				m := make([][]byte, p.N)
+				vec := make([]kbls.Fr, p.N)
 				for i := uint32(0); i < p.N; i++ {
-					m[i] = tempShares[i].Data
+					vec[i] = *utils.HashByteToFr(tempShares[i].Data)
 				}
-				tempVCommiter, _ := vectorcommitment.NewMerkleTree(m) //re-commit
-				tempVC := tempVCommiter.GetMerkleTreeRoot()
-				if bytes.Equal(vc, tempVC) {
+				tempVC := p.VC.Commit(vec) //re-commit
+				if vc == tempVC {
 					return value, true
 				}
 				return nil, false

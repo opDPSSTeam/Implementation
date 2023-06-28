@@ -87,3 +87,10 @@ func HashG1toFr(g *bls.G1Point) *kbls.Fr {
 	bv.SetString(hex.EncodeToString(str[:]), 16)
 	return kbls.NewFr().RedFromBytes(bv.Bytes())
 }
+
+func HashByteToFr(b []byte) *kbls.Fr {
+	str := sha256.Sum256(b)
+	var bv big.Int
+	bv.SetString(hex.EncodeToString(str[:]), 16)
+	return kbls.NewFr().RedFromBytes(bv.Bytes())
+}

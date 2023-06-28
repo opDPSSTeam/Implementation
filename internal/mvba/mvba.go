@@ -6,6 +6,7 @@ package mvba
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
 
 	"github.com/opDPSSTeam/DPSS/internal/party"
@@ -21,7 +22,8 @@ import (
 func MainProcess(p *party.HonestParty, ID []byte, value []byte, validation []byte, Q func(*party.HonestParty, []byte, []byte, []byte) error) []byte {
 
 	Sr := sync.Map{} //Lock Set
-	pdResult := make(chan []byte, 2)
+	pdResultVC := make(chan string, 1)
+	pdResultSig := make(chan []byte, 1)
 
 	//Initialize PD instances
 	IDj := make([][]byte, 0, p.N)
@@ -34,13 +36,12 @@ func MainProcess(p *party.HonestParty, ID []byte, value []byte, validation []byt
 
 	for i := uint32(0); i < p.N; i++ {
 		go func(j uint32) {
-			vc, shard, proof1, proof2, ok := PDReceiver(p, j, IDj[j])
+			vc, shard, proof, ok := PDReceiver(p, j, IDj[j])
 			if ok { //save Store
 				Sr.Store(j, &protobuf.Store{
-					Vc:     vc,
-					Shard:  shard,
-					Proof1: proof1,
-					Proof2: proof2,
+					Vc:    vc,
+					Shard: shard,
+					Proof: proof,
 				})
 			}
 		}(i)
@@ -55,19 +56,20 @@ func MainProcess(p *party.HonestParty, ID []byte, value []byte, validation []byt
 		valueAndValidation := buf.Bytes()
 
 		vc, sig := PDSender(p, IDj[p.PID], valueAndValidation)
-		pdResult <- vc
-		pdResult <- sig
+		pdResultVC <- vc
+		pdResultSig <- sig
 
 	}()
 
 	//waiting until pd
-	vc := <-pdResult
-	sig := <-pdResult
+	vc := <-pdResultVC
+	sig := <-pdResultSig
+	fmt.Printf("p[%d]: PD finished\n", p.PID)
 
 	//vc -> pid||vc
 	var buf bytes.Buffer
 	buf.Write(utils.Uint32ToBytes(p.PID))
-	buf.Write(vc)
+	buf.Write([]byte(vc))
 	idAndVC := buf.Bytes()
 
 	for r := uint32(0); ; r++ {
@@ -79,7 +81,7 @@ func MainProcess(p *party.HonestParty, ID []byte, value []byte, validation []byt
 		//run underlying smvba
 		leaderAndVC := smvba.MainProcess(p, IDr, idAndVC, sig, validator)
 		leader := utils.BytesToUint32(leaderAndVC[:4])
-		leaderVC := leaderAndVC[4:]
+		leaderVC := string(leaderAndVC[4:])
 
 		//recast
 		tmp, ok1 := Sr.Load(leader)
@@ -87,12 +89,15 @@ func MainProcess(p *party.HonestParty, ID []byte, value []byte, validation []byt
 		var ok2 bool
 		if ok1 {
 			//have leader's Store
-			valueAndValidation, ok2 = Recast(p, IDr, leader, leaderVC, tmp.(*protobuf.Store).Shard, tmp.(*protobuf.Store).Proof1, tmp.(*protobuf.Store).Proof2)
+			fmt.Printf("p[%d] recast\n", p.PID)
+			valueAndValidation, ok2 = Recast(p, IDr, leader, leaderVC, tmp.(*protobuf.Store).Shard, tmp.(*protobuf.Store).Proof)
 		} else {
 			//don't have leader's Store
-			valueAndValidation, ok2 = Recast(p, IDr, leader, leaderVC, nil, nil, nil)
+			fmt.Printf("p[%d] don't have leader's Store, recast\n", p.PID)
+			valueAndValidation, ok2 = Recast(p, IDr, leader, leaderVC, nil, "")
 		}
 		if ok2 {
+			fmt.Printf("p[%d] recast success\n", p.PID)
 			validationLen := utils.BytesToUint32(valueAndValidation[len(valueAndValidation)-4:])
 			resultValue := valueAndValidation[:len(valueAndValidation)-int(validationLen)-4]
 			validation := valueAndValidation[len(resultValue) : len(resultValue)+int(validationLen)]
