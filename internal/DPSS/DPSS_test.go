@@ -14,6 +14,7 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/polyring"
 	"github.com/opDPSSTeam/DPSS/internal/vss"
 	"github.com/opDPSSTeam/DPSS/internal/wpACSS"
+	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,13 +29,14 @@ func TestDpssOld(t *testing.T) {
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	skNew, pkNew := party.SigKeyGen(N, 2*F+1)
+	vc := pointproofs.New(N)
 
 	var p = make([]*party.HonestParty, N)
 	var pNext = make([]*party.HonestParty, N)
 
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i])
-		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i], vc)
+		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i], vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -111,13 +113,14 @@ func TestDpssNew(t *testing.T) {
 	F := uint32(2)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	skNew, pkNew := party.SigKeyGen(N, 2*F+1)
+	vc := pointproofs.New(N)
 
 	var p = make([]*party.HonestParty, N)
 	var pNext = make([]*party.HonestParty, N)
 
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i])
-		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i], vc)
+		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i], vc)
 	}
 
 	for i := uint32(0); i < N; i++ {

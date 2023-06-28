@@ -110,11 +110,6 @@ message vInShare{
   repeated bytes recPolyEval = 3;
 }
 
-message PiVcomMerkle{
-  repeated bytes path = 1;
-  repeated int64 indicator = 2;
-}
-
 message PiRec{
   bytes Cdk=1;
   bytes wdki=2;
@@ -128,8 +123,8 @@ message piInShare{
   bytes wvssi=3;
   bytes Cz=4;
   bytes wz0 = 5;
-  bytes Cvcom=6;
-  PiVcomMerkle piVcom=7;
+  string Cvcom=6;
+  string piVcom=7;
   PiRec piRec=8;
 }
 
@@ -175,9 +170,9 @@ message wpAcssHelp{
 
 //Dpss
 message DpssCom{
-  bytes Cold = 1;
+  string Cold = 1;
   bytes Gsi = 2;
-  PiVcomMerkle piOld = 3;
+  string piOld = 3;
 }
 
 message DpssProof{
@@ -206,8 +201,8 @@ message Err{
 message AuxCont{
   uint32 k = 1;
   bytes Gs = 2;
-  bytes Cvcom = 3;
-  PiVcomMerkle piVcom = 4;
+  string Cvcom = 3;
+  string piVcom = 4;
 }
 
 message Aux{

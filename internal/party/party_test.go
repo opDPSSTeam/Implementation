@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/opDPSSTeam/DPSS/internal/bls"
+	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 )
 
 func TestUtils(t *testing.T) {
@@ -13,7 +14,8 @@ func TestUtils(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
-	p := NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
+	vc := pointproofs.New(N)
+	p := NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1], vc)
 
 	var v VShare
 	var pi PiShare

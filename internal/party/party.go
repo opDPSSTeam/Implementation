@@ -9,8 +9,8 @@ import (
 	"github.com/drand/kyber/sign/tbls"
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/polycommit"
+	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
-	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
 )
 
 //Party is a interface of consensus parties
@@ -62,12 +62,12 @@ type PiShare struct {
 	Wvssi  bls.G1Point
 	Cz     bls.G1Point
 	Wz0    bls.G1Point
-	Cvcom  []byte
-	PiVcom vectorcommitment.PiVcomMerkle
+	Cvcom  string
+	PiVcom string
 	PiRec  PiRec
 }
 
-func NewPiShare(Gs bls.G1Point, Cvss bls.G1Point, wvssi bls.G1Point, Cz bls.G1Point, wz0 bls.G1Point, Cvcom []byte, piVcom vectorcommitment.PiVcomMerkle, piRec PiRec) *PiShare {
+func NewPiShare(Gs bls.G1Point, Cvss bls.G1Point, wvssi bls.G1Point, Cz bls.G1Point, wz0 bls.G1Point, Cvcom string, piVcom string, piRec PiRec) *PiShare {
 	return &PiShare{Gs, Cvss, wvssi, Cz, wz0, Cvcom, piVcom, piRec}
 }
 
@@ -118,6 +118,7 @@ type HonestParty struct {
 	FS       *polycommit.FFTSettings
 	KZG      *polycommit.KZGSettings
 	MutexKZG *sync.Mutex
+	VC       *pointproofs.VectorCommit
 
 	Share       bls.Fr        //share of this party
 	Gs          bls.G1Point   //commitment of the original share (invariant)
@@ -137,7 +138,7 @@ type HonestParty struct {
 }
 
 //NewHonestParty return a new honest party object
-func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, portList []string, ipListOld []string, portListOld []string, ipListNext []string, portListNext []string, sigPK *share.PubPoly, sigPKNew *share.PubPoly, sigSK *share.PriShare) *HonestParty {
+func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, portList []string, ipListOld []string, portListOld []string, ipListNext []string, portListNext []string, sigPK *share.PubPoly, sigPKNew *share.PubPoly, sigSK *share.PriShare, vc *pointproofs.VectorCommit) *HonestParty {
 	var SysSuite = kyberbls.NewBLS12381Suite()
 	tblsScheme := tbls.NewThresholdSchemeOnG1(SysSuite)
 
@@ -181,6 +182,7 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 
 		KZG:      KZG,
 		MutexKZG: &mutexKZG,
+		VC:       vc,
 
 		Share:       bls.ZERO,
 		Gs:          bls.GenG1,

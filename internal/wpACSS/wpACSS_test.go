@@ -12,6 +12,7 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/dprf"
 	"github.com/opDPSSTeam/DPSS/internal/party"
 	"github.com/opDPSSTeam/DPSS/internal/polyring"
+	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +24,9 @@ func TestGenRecPoly(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
-	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
+	vc := pointproofs.New(N)
+
+	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1], vc)
 
 	//uncomment the block comment in genRecPoly to test
 	genRecPoly(p, F, N)
@@ -37,10 +40,11 @@ func TestShare(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
+	vc := pointproofs.New(N)
 
 	var p []*party.HonestParty = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -103,10 +107,11 @@ func TestCallHelp(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
+	vc := pointproofs.New(N)
 
 	var p []*party.HonestParty = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -129,10 +134,11 @@ func TestRecContrib(t *testing.T) {
 	N := uint32(7)
 	F := uint32(2)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
+	vc := pointproofs.New(N)
 
 	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -235,10 +241,11 @@ func TestRecover(t *testing.T) {
 	N := uint32(7)
 	F := uint32(2)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
+	vc := pointproofs.New(N)
 
 	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
 	}
 
 	for i := uint32(0); i < N; i++ {

@@ -17,11 +17,11 @@ import (
 const MaxLength = 64
 
 type VectorCommit struct {
-	index int
+	index uint32
 	srs   string
 }
 
-func New(vectorLen int) *VectorCommit {
+func New(vectorLen uint32) *VectorCommit {
 	if vectorLen < 4 || vectorLen > MaxLength || vectorLen%3 != 1 {
 		return nil
 	}

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/opDPSSTeam/DPSS/internal/party"
+	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 
@@ -37,10 +38,11 @@ func TestMainProcess(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1)
+	vc := pointproofs.New(N)
 
 	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(1, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i] = party.NewHonestParty(1, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
 	}
 
 	for i := uint32(0); i < N; i++ {

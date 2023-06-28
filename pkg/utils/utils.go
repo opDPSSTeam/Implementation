@@ -2,7 +2,13 @@ package utils
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
+	"math/big"
+
+	kbls "github.com/kilic/bls12-381"
+	"github.com/opDPSSTeam/DPSS/internal/bls"
 )
 
 //Uint32ToBytes convert uint32 to bytes
@@ -67,9 +73,17 @@ func DeleteZeroWithLen(src []byte, len int) []byte {
 	return src[0:len]
 }
 
-// SliceToArray will convert byte slice to a 32 byte array
+// SliceToArray convert byte slice to a 32 byte array
 func SliceToArray(bytes []byte) [32]byte {
 	var byteArray [32]byte
 	copy(byteArray[:], bytes)
 	return byteArray
+}
+
+// HashG1toFr map bls.G1Point to kbls.Fr using sha256
+func HashG1toFr(g *bls.G1Point) *kbls.Fr {
+	str := sha256.Sum256([]byte(g.String()))
+	var bv big.Int
+	bv.SetString(hex.EncodeToString(str[:]), 16)
+	return kbls.NewFr().RedFromBytes(bv.Bytes())
 }

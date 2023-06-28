@@ -7,6 +7,7 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/party"
 	"github.com/opDPSSTeam/DPSS/internal/polyring"
+	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,7 +18,8 @@ func TestVSS(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
-	client := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
+	vc := pointproofs.New(N)
+	client := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1], vc)
 
 	var secret bls.Fr
 	bls.AsFr(&secret, uint64(12345))
