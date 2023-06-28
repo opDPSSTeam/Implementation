@@ -213,3 +213,10 @@ message AuxCont{
 message Aux{
   repeated AuxCont cont = 1;
 }
+
+//init sharing
+message Init{
+  bytes share = 1;
+  repeated bytes vcom = 2;
+  bytes Gs = 3;
+}

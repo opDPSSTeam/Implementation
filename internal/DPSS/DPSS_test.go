@@ -226,3 +226,27 @@ func TestSubstractSet(t *testing.T) {
 	c := substractSet(a, b)
 	fmt.Printf("c: %v\n", c)
 }
+
+func TestReconstruct(t *testing.T) {
+	//this test reconstructs the secret using the new shares, which are output in the log files
+	newShares := make([]bls.Fr, 4)
+	pos := make([]bls.Fr, 4)
+	for i := 0; i < 4; i++ {
+		bls.AsFr(&pos[i], uint64(i+1))
+	}
+
+	//replace the strings with the new shares in the log files
+	bls.SetFr(&newShares[0], "7076420280611190068186812288530419720426187130854152761506250058562944611436")
+	bls.SetFr(&newShares[1], "14152840561222380136373624577060839440852374261708305523012500117125889210527")
+	bls.SetFr(&newShares[2], "21229260841833570204560436865591259161278561392562458284518750175688833809618")
+	bls.SetFr(&newShares[3], "28305681122444760272747249154121678881704748523416611046025000234251778408709")
+
+	F := uint32(1)
+	var secret bls.Fr
+	bls.AsFr(&secret, uint64(12345))
+
+	poly := polyring.LagrangeInterpolate(F, pos[:F+2], newShares[:F+2])
+	fmt.Println("poly: ", party.PolyToString(poly))
+	assert.True(t, bls.EqualFr(&secret, &poly[0]), "Reconstruct secret from the newshares fail")
+
+}
