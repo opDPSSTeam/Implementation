@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 
 	"testing"
 
@@ -31,7 +32,8 @@ func TestPb(t *testing.T) {
 
 	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(1, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
+		p[i] = party.NewHonestParty(1, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -61,11 +63,11 @@ func TestPb(t *testing.T) {
 		fmt.Println(err)
 	}()
 
+	var wg sync.WaitGroup
+	wg.Add(int(N))
 	for i := uint32(0); i < N; i++ {
 		go Receiver(ctx, p[i], 0, ID, nil)
+		wg.Done()
 	}
-
-	for {
-
-	}
+	wg.Wait()
 }

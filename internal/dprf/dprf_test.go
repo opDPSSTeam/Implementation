@@ -19,7 +19,8 @@ func TestDPRF(t *testing.T) {
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	vc := pointproofs.New(N)
-	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1], vc)
+	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
+	p.SetVC(vc)
 
 	//test InitDPRF() and VrfyKey()
 	dsk, dpk, Cdk, dski, dvki, wdki := InitDPRF(p, F, N)

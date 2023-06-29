@@ -66,9 +66,12 @@ func VrfyKey(p *party.HonestParty, i bls.Fr, dski bls.Fr, dvki bls.G1Point, Cdk 
 	var tmp bls.G1Point
 	bls.MulG1(&tmp, &bls.GenG1, &dski)
 	if bls.EqualG1(&tmp, &dvki) {
+		p.MutexKZG.Lock()
 		if p.KZG.CheckProofSingle(&Cdk, &wdki, &i, &dski) {
+			p.MutexKZG.Unlock()
 			return true
 		}
+		p.MutexKZG.Unlock()
 	}
 	return false
 }

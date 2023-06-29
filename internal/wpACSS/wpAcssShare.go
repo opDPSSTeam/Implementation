@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
+	"log"
 	"math/big"
 
 	kyberbls "github.com/drand/kyber-bls12381"
@@ -90,9 +90,9 @@ func WpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 				Data:   data,
 			}, uint32(i)) //send to party i
 			if err != nil {
-				fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare error: %v\n", p.PID, err)
+				log.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare error: %v\n", p.PID, err)
 			} //else {
-			// 	fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare to [New Party %v] done\n", p.PID, i)
+			// 	log.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare to [New Party %v] done\n", p.PID, i)
 			// }
 		} else {
 			err := p.SendToNextCommittee(&protobuf.Message{
@@ -102,31 +102,31 @@ func WpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 				Data:   data,
 			}, uint32(i)) //send to party i
 			if err != nil {
-				fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare error: %v\n", p.PID, err)
+				log.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare error: %v\n", p.PID, err)
 			} //else {
-			// 	fmt.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare to [New Party %v] done\n", p.PID, i)
+			// 	log.Printf("[DPSS wpACSS] [Old Party %v] send wpAcssShare to [New Party %v] done\n", p.PID, i)
 			// }
 		}
 	}
-	fmt.Printf("[DPSS wpACSS] [Old Party %v] wpACSS.Share done\n", p.PID)
+	log.Printf("[DPSS wpACSS] [Old Party %v] wpACSS.Share done\n", p.PID)
 
 	//this block is to verify the correctness of Encapsulate and Decapsulate messages
 	/*
 		var wpAcssMsg protobuf.WpAcssShare
 		err := proto.Unmarshal(data, &wpAcssMsg)
 		if err != nil {
-			fmt.Printf("[wpACSS.Share] Client send wpAcssShare error: %v\n", err)
+			log.Printf("[wpACSS.Share] Client send wpAcssShare error: %v\n", err)
 		}
 
 		vDec, pDec := DecapsulateWpAcssSend(&wpAcssMsg)
-		fmt.Println("=======tmpV=======")
+		log.Println("=======tmpV=======")
 		printVShare(tmpV)
-		fmt.Println("=======vDec=======")
+		log.Println("=======vDec=======")
 		printVShare(vDec)
 
-		fmt.Println("=======tmpP=======")
+		log.Println("=======tmpP=======")
 		printPiShare(tmpP)
-		fmt.Println("=======pDec=======")
+		log.Println("=======pDec=======")
 		printPiShare(pDec) */
 
 	sigs := [][]byte{}
@@ -142,9 +142,9 @@ func WpAcssShareSend(ctx context.Context, p *party.HonestParty, ID []byte, curre
 			var payload protobuf.WpAcssEcho
 			err := proto.Unmarshal(m.Data, &payload)
 			if err != nil {
-				fmt.Printf("[DPSS wpACSS] [New Party %v] unmarshal wpAcssEcho error: %v\n", p.PID, err)
+				log.Printf("[DPSS wpACSS] [New Party %v] unmarshal wpAcssEcho error: %v\n", p.PID, err)
 			} //else {
-			// 	fmt.Printf("[DPSS wpACSS] [New Party %v] receive wpAcssEcho from [Party %v]\n", p.PID, m.Sender)
+			// 	log.Printf("[DPSS wpACSS] [New Party %v] receive wpAcssEcho from [Party %v]\n", p.PID, m.Sender)
 			// }
 
 			sigs = append(sigs, payload.Sigshare)
@@ -169,9 +169,9 @@ func WpAcssShareEcho(p *party.HonestParty, isNew bool, ID []byte) (party.VShare,
 	var wpAcssMsg protobuf.WpAcssShare
 	err := proto.Unmarshal(m.Data, &wpAcssMsg)
 	if err != nil {
-		fmt.Printf("[DPSS wpACSS] [New Party %v] receive wpAcssShare error: %v\n", p.PID, err)
+		log.Printf("[DPSS wpACSS] [New Party %v] receive wpAcssShare error: %v\n", p.PID, err)
 	} // else {
-	// 	fmt.Printf("[DPSS wpACSS.Share] [New Party %v] receive wpAcssShare from [Old Party %v]\n", p.PID, m.Sender)
+	// 	log.Printf("[DPSS wpACSS.Share] [New Party %v] receive wpAcssShare from [Old Party %v]\n", p.PID, m.Sender)
 	// }
 
 	vDec, pDec, mdPartial, isValid := decapAndVrfyWpAcssSend(p, &wpAcssMsg)
@@ -201,9 +201,9 @@ func WpAcssShareEcho(p *party.HonestParty, isNew bool, ID []byte) (party.VShare,
 			Data:   data,
 		}, senderID)
 		if err != nil {
-			fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho error: %v\n", p.PID, err)
+			log.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho error: %v\n", p.PID, err)
 		} //else {
-		// 	fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho to [Old Party %v] done\n", p.PID, senderID)
+		// 	log.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho to [Old Party %v] done\n", p.PID, senderID)
 		// }
 	} else {
 		err = p.Send(&protobuf.Message{
@@ -213,9 +213,9 @@ func WpAcssShareEcho(p *party.HonestParty, isNew bool, ID []byte) (party.VShare,
 			Data:   data,
 		}, senderID)
 		if err != nil {
-			fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho error: %v\n", p.PID, err)
+			log.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho error: %v\n", p.PID, err)
 		} //else {
-		// 	fmt.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho to [Old Party %v] done\n", p.PID, senderID)
+		// 	log.Printf("[DPSS wpACSS] [New Party %d] send wpAcssEcho to [Old Party %v] done\n", p.PID, senderID)
 		// }
 	}
 
@@ -232,12 +232,12 @@ func verifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiSh
 	var tmpG1 bls.G1Point
 	bls.AddG1(&tmpG1, &pDec.Gs, &pDec.Cz)
 	if !bls.EqualG1(&pDec.Cvss, &tmpG1) {
-		fmt.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend failed: Cvss != Gs*Cz\n", p.PID)
+		log.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend failed: Cvss != Gs*Cz\n", p.PID)
 		return false
 	}
 	p.MutexKZG.Lock()
 	if !p.KZG.CheckProofSingle(&pDec.Cz, &pDec.Wz0, &bls.ZERO, &bls.ZERO) {
-		fmt.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend failed: wz0 proof failed\n", p.PID)
+		log.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend failed: wz0 proof failed\n", p.PID)
 		p.MutexKZG.Unlock()
 		return false
 	}
@@ -247,7 +247,7 @@ func verifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiSh
 	bls.MulG1(&Gsi, &bls.GenG1, &vDec.S)
 	convertedGsi := utils.HashG1toFr(&Gsi)
 	if !p.VC.Verify(pDec.Cvcom, *convertedGsi, int(p.PID), pDec.PiVcom) {
-		fmt.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend failed: piVcom proof failed\n", p.PID)
+		log.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend failed: piVcom proof failed\n", p.PID)
 		return false
 	}
 
@@ -257,7 +257,7 @@ func verifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiSh
 		p.MutexKZG.Lock()
 		if !p.KZG.CheckProofSingle(&pDec.PiRec.Crec[i], &pDec.PiRec.Weval[i], &pos, &vDec.RecPolyEval[i]) {
 			p.MutexKZG.Unlock()
-			fmt.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend failed: poly commitment to Phi_%v(%v) fail\n", p.PID, i, p.PID+1)
+			log.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend failed: poly commitment to Phi_%v(%v) fail\n", p.PID, i, p.PID+1)
 			return false
 		}
 		p.MutexKZG.Unlock()
@@ -288,7 +288,7 @@ func genRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr,
 		bls.AsFr(&I[i], uint64(i+1))
 
 		// uncomment to test genRecPoly()
-		// fmt.Printf("y[%d] = %s\n", i, y[i].String())
+		// log.Printf("y[%d] = %s\n", i, y[i].String())
 	}
 
 	for i := uint32(0); i < ell; i++ {
@@ -314,7 +314,7 @@ func genRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr,
 	   		for j := uint32(0); j < f; j++ {
 	   			bls.AsFr(&tmpPos, uint64(i*f+j+1))
 	   			bls.EvalPolyAt(&tmpEval, poly[i], &tmpPos)
-	   			fmt.Printf("poly[%d](%d) = %s\n", i, i*f+j+1, tmpEval.String())
+	   			log.Printf("poly[%d](%d) = %s\n", i, i*f+j+1, tmpEval.String())
 	   		}
 	   	} */
 
@@ -445,9 +445,9 @@ func decapAndVrfyWpAcssSend(p *party.HonestParty, m *protobuf.WpAcssShare) (*par
 		mdPartial = append(mdPartial, m.P.PiRec.Crec[1]...)
 		mdPartial = append(mdPartial, m.P.PiRec.Crec[2]...)
 		mdPartial = append(mdPartial, m.P.PiRec.Crec[3]...)
-		// fmt.Printf("[wpACSS.Share] [Party %v] decapAndVrfyWpAcssSend: valid message\n", p.PID)
+		// log.Printf("[wpACSS.Share] [Party %v] decapAndVrfyWpAcssSend: valid message\n", p.PID)
 	} else {
-		fmt.Printf("[DPSS wpACSS] [New Party %v] decapAndVrfyWpAcssSend: invalid message\n", p.PID)
+		log.Printf("[DPSS wpACSS] [New Party %v] decapAndVrfyWpAcssSend: invalid message\n", p.PID)
 		mdPartial = []byte{}
 	}
 

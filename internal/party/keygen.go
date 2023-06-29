@@ -48,6 +48,11 @@ func SigKeyGenFix(n uint32, t uint32) ([]*share.PriShare, *share.PubPoly) {
 	npoints := pripoly.Shares(int(n))
 	//pub poly
 	pubpoly := pripoly.Commit(suit.G2().Point().Base())
+
+	// var vc_srs string
+	// ReadFromFile(&vc_srs, "vc_srs")
+	// vc := pointproofs.StrtoVC(vc_srs)
+	// return npoints, pubpoly, vc
 	return npoints, pubpoly
 }
 
@@ -68,6 +73,10 @@ func SigKeyGenFix_New(n uint32, t uint32) ([]*share.PriShare, *share.PubPoly) {
 	npoints := pripoly.Shares(int(n))
 	//pub poly
 	pubpoly := pripoly.Commit(suit.G2().Point().Base())
+	// var vc_srs string
+	// ReadFromFile(&vc_srs, "vc_srs")
+	// vc := pointproofs.StrtoVC(vc_srs)
+	// return npoints, pubpoly, vc
 	return npoints, pubpoly
 }
 
@@ -121,6 +130,9 @@ func GenCoefficientsFile(N int, T int) {
 		coeff_bytes_new[i], _ = coeff_new[i].MarshalBinary()
 	}
 	WriteToFile(coeff_bytes_new, "coefficients_new")
+	// vc := pointproofs.New(uint32(N))
+	// vcStr := pointproofs.VCtoStr(vc)
+	// WriteToFile(vcStr, "vc_srs")
 }
 
 func WriteToFile(data interface{}, filename string) {

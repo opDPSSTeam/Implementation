@@ -206,3 +206,20 @@ message AuxCont{
 message Aux{
   repeated AuxCont cont = 1;
 }
+
+//init sharing
+message InitOld{
+  bytes share = 1;
+  repeated bytes vcom = 2;
+  bytes Gs = 3;
+  VC vc = 4;
+}
+
+message InitNew{
+  VC vc =1;
+}
+
+message VC{
+  uint32 index = 1;
+  string srs = 2;
+}

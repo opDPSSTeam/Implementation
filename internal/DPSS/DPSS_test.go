@@ -35,8 +35,10 @@ func TestDpssOld(t *testing.T) {
 	var pNext = make([]*party.HonestParty, N)
 
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i], vc)
-		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i], vc)
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i])
+		p[i].SetVC(vc)
+		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i])
+		pNext[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -119,8 +121,10 @@ func TestDpssNew(t *testing.T) {
 	var pNext = make([]*party.HonestParty, N)
 
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i], vc)
-		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i], vc)
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i])
+		p[i].SetVC(vc)
+		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i])
+		pNext[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {

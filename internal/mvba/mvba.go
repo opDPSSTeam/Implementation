@@ -6,7 +6,7 @@ package mvba
 
 import (
 	"bytes"
-	"fmt"
+	"log"
 	"sync"
 
 	"github.com/opDPSSTeam/DPSS/internal/party"
@@ -64,7 +64,6 @@ func MainProcess(p *party.HonestParty, ID []byte, value []byte, validation []byt
 	//waiting until pd
 	vc := <-pdResultVC
 	sig := <-pdResultSig
-	fmt.Printf("p[%d]: PD finished\n", p.PID)
 
 	//vc -> pid||vc
 	var buf bytes.Buffer
@@ -89,15 +88,13 @@ func MainProcess(p *party.HonestParty, ID []byte, value []byte, validation []byt
 		var ok2 bool
 		if ok1 {
 			//have leader's Store
-			fmt.Printf("p[%d] recast\n", p.PID)
 			valueAndValidation, ok2 = Recast(p, IDr, leader, leaderVC, tmp.(*protobuf.Store).Shard, tmp.(*protobuf.Store).Proof)
 		} else {
 			//don't have leader's Store
-			fmt.Printf("p[%d] don't have leader's Store, recast\n", p.PID)
+			log.Printf("p[%d] don't have leader's Store, recast\n", p.PID)
 			valueAndValidation, ok2 = Recast(p, IDr, leader, leaderVC, nil, "")
 		}
 		if ok2 {
-			fmt.Printf("p[%d] recast success\n", p.PID)
 			validationLen := utils.BytesToUint32(valueAndValidation[len(valueAndValidation)-4:])
 			resultValue := valueAndValidation[:len(valueAndValidation)-int(validationLen)-4]
 			validation := valueAndValidation[len(resultValue) : len(resultValue)+int(validationLen)]

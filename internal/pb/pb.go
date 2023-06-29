@@ -7,7 +7,6 @@ package pb //provable broadcast
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/opDPSSTeam/DPSS/internal/party"
@@ -67,7 +66,7 @@ func Receiver(ctx context.Context, p *party.HonestParty, sender uint32, ID []byt
 		if validator != nil {
 			err2 := validator(p, ID, payload.Value, payload.Validation)
 			if err2 != nil {
-				fmt.Printf("[MVBA] [Party %d] Validator error: %v, sender: %v\n", p.PID, err2, m.Sender)
+				log.Printf("[MVBA] [Party %d] Validator error: %v, sender: %v\n", p.PID, err2, m.Sender)
 				log.Fatalln(err2)
 				return nil, nil, false //sender is dishonest
 			}

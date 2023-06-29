@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
+	"time"
 
 	kyberbls "github.com/drand/kyber-bls12381"
 	blsSig "github.com/drand/kyber/sign/bls"
@@ -20,6 +22,7 @@ import (
 
 //DpssOld is the old party's procedures in DPSS
 func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N uint32) {
+	p.DpssOldStart = time.Now()
 
 	vgConverted := make([]kbls.Fr, N)
 	for i := uint32(0); i < N; i++ {
@@ -37,9 +40,9 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 		Data:   data,
 	})
 	if err != nil {
-		fmt.Printf("[DPSS Commit] [Old Party %v] multicast DpssCom error: %v\n", p.PID, err)
+		log.Printf("[DPSS Commit] [Old Party %v] multicast DpssCom error: %v\n", p.PID, err)
 	}
-	fmt.Printf("[DPSS Commit] [Old Party %v] multicast DpssCom done\n", p.PID)
+	log.Printf("[DPSS Commit] [Old Party %v] multicast DpssCom done\n", p.PID)
 
 	md, sig := wpACSS.WpAcssShareSend(ctx, p, ID, false, F, N, p.Share)
 
@@ -47,9 +50,9 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	/* 	blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 	   	err = blsScheme.Verify(p.SigPKNew.Commit(), md, sig)
 	   	if err != nil {
-	   		fmt.Printf("[DPSS.Commit] [Old Party %v] verify DpssProof error: %v\n", p.PID, err)
+	   		log.Printf("[DPSS.Commit] [Old Party %v] verify DpssProof error: %v\n", p.PID, err)
 	   	} else {
-	   		fmt.Printf("[DPSS.Commit] [Old Party %v] has generated a valid DpssProof\n", p.PID)
+	   		log.Printf("[DPSS.Commit] [Old Party %v] has generated a valid DpssProof\n", p.PID)
 	   	} */
 
 	data = encapsulateProofMsg(md, sig)
@@ -60,15 +63,16 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 		Data:   data,
 	})
 	if err != nil {
-		fmt.Printf("[DPSS Reshare] [Old Party %v] send DpssProof error: %v\n", p.PID, err)
+		log.Printf("[DPSS Reshare] [Old Party %v] send DpssProof error: %v\n", p.PID, err)
 	}
-	fmt.Printf("[DPSS Reshare] [Old Party %v] multicast DpssProof done\n", p.PID)
-
+	log.Printf("[DPSS Reshare] [Old Party %v] multicast DpssProof done\n", p.PID)
+	p.DpssOldEnd = time.Now()
 }
 
 //DpssNew is the new party's procedures in DPSS
 func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N uint32) bls.Fr {
 
+	p.DpssNewStart = time.Now()
 	//start wpACSS instances to receive shares from old parties
 	go func() {
 		for {
@@ -95,12 +99,12 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 					var DpssComMsg protobuf.DpssCom
 					err := proto.Unmarshal(m.Data, &DpssComMsg)
 					if err != nil {
-						fmt.Printf("[DPSS Commit] [New Party %v] receive DpssCom error: %v\n", p.PID, err)
+						log.Printf("[DPSS Commit] [New Party %v] receive DpssCom error: %v\n", p.PID, err)
 					} //else {
-					// 	fmt.Printf("[DPSS Commit] [New Party %v] receive DpssCom from [Old Party %v]\n", p.PID, m.Sender)
+					// 	log.Printf("[DPSS Commit] [New Party %v] receive DpssCom from [Old Party %v]\n", p.PID, m.Sender)
 					// }
 					if !verifyComMsg(p, &DpssComMsg, m.Sender) {
-						fmt.Printf("[DPSS Commit] [New Party %v] verify DpssCom from [Old Party %v] error: invalid commitment or value\n", p.PID, m.Sender)
+						log.Printf("[DPSS Commit] [New Party %v] verify DpssCom from [Old Party %v] error: invalid commitment or value\n", p.PID, m.Sender)
 						continue //wait for the next commitment
 					}
 					Gsi, _ := bls.FromCompressedG1(DpssComMsg.Gsi)
@@ -114,7 +118,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 						p.SetVCom(vcom)
 						Gs := p.InterpolateComOrWitByKnownIndexes(F, 0, index, vg)
 						p.SetGs(&Gs)
-						fmt.Printf("[DPSS Commit] [New Party %v] interpolate the commitments to all old shares done\n", p.PID)
+						log.Printf("[DPSS Commit] [New Party %v] interpolate the commitments to all old shares done\n", p.PID)
 						getVComChan <- true
 						isInterpolated = true
 						//return
@@ -144,13 +148,13 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 					var DpssProofMsg protobuf.DpssProof
 					err := proto.Unmarshal(m.Data, &DpssProofMsg)
 					if err != nil {
-						fmt.Printf("[DPSS Reshare] [New Party %v] receive DpssProof error: %v\n", p.PID, err)
+						log.Printf("[DPSS Reshare] [New Party %v] receive DpssProof error: %v\n", p.PID, err)
 					}
 
 					blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 					err = blsScheme.Verify(p.SigPK.Commit(), DpssProofMsg.M, DpssProofMsg.Sig)
 					if err != nil {
-						fmt.Printf("[DPSS Reshare] [New Party %v] verify DpssProof from [Old Party %v] error: invalid signature\n", p.PID, m.Sender)
+						log.Printf("[DPSS Reshare] [New Party %v] verify DpssProof from [Old Party %v] error: invalid signature\n", p.PID, m.Sender)
 						continue //wait for the next proof
 					}
 
@@ -160,11 +164,11 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 						ifGetVCom = <-getVComChan
 					}
 					if !bls.EqualG1(Gsi, &p.VCom[m.Sender]) {
-						fmt.Printf("[DPSS Verify] [New Party %v] verify DpssProof from [Old Party %v] error: Gsi != VCom[%v], Gsi = %s, VCom[%v] = %s\n", p.PID, m.Sender, m.Sender, Gsi.String(), m.Sender, p.VCom[m.Sender].String())
+						log.Printf("[DPSS Verify] [New Party %v] verify DpssProof from [Old Party %v] error: Gsi != VCom[%v], Gsi = %s, VCom[%v] = %s\n", p.PID, m.Sender, m.Sender, Gsi.String(), m.Sender, p.VCom[m.Sender].String())
 						continue //wait for the next proof
 					}
 
-					// fmt.Printf("[DPSS Verify] [New Party %v] receive valid DpssProof from [Old Party %v]\n", p.PID, m.Sender)
+					// log.Printf("[DPSS Verify] [New Party %v] receive valid DpssProof from [Old Party %v]\n", p.PID, m.Sender)
 
 					proofCtr := p.SetMsgSigTuples(DpssProofMsg.M, DpssProofMsg.Sig, m.Sender)
 					if uint32(proofCtr) <= F+1 {
@@ -174,7 +178,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 
 					//MVBA
 					if uint32(proofCtr) >= F+1 {
-						fmt.Printf("[DPSS MVBA] [New Party %v] call MVBA\n", p.PID)
+						log.Printf("[DPSS MVBA] [New Party %v] call MVBA\n", p.PID)
 						data, _ := proto.Marshal(MvbaInMsg)
 						MVBAsent = true
 						MVBAResChan <- mvba.MainProcess(p, ID, data, nil, Pmvba) //in our use case, the signatures are included in data, so we set validation as nil here
@@ -189,7 +193,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	var MvbaRes = new(protobuf.MvbaIn)
 	err := proto.Unmarshal(res, MvbaRes)
 	if err != nil {
-		fmt.Printf("[DPSS MVBA] [New Party %v] parse MVBA output error: %v\n", p.PID, err)
+		log.Printf("[DPSS MVBA] [New Party %v] parse MVBA output error: %v\n", p.PID, err)
 	}
 	I := make([]uint32, len(MvbaRes.Tuple))
 	Shelp := make([]uint32, 0)
@@ -211,7 +215,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 		// 	Shelp = []uint32{I[1]}
 		// }
 	}
-	fmt.Printf("[DPSS MVBA] [New Party %v] MVBA output: %v\n", p.PID, I)
+	log.Printf("[DPSS MVBA] [New Party %v] MVBA output: %v\n", p.PID, I)
 
 	var recoverResChan = make(chan map[uint32]bls.Fr, 1)
 	var SrecMap = make(map[uint32]bls.Fr) //maps dealerID to the recovered s_{d,i}
@@ -221,7 +225,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 			wpACSS.CallHelp(p, ID, F, N, Shelp)
 			recoverResChan <- wpACSS.WaitHelp(p, ID, F, N, Shelp) //wait for others' help
 		} else {
-			fmt.Printf("[DPSS Recover] [New Party %v] no help needed\n", p.PID)
+			log.Printf("[DPSS Recover] [New Party %v] no help needed\n", p.PID)
 		}
 	}()
 
@@ -244,9 +248,10 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	}
 	refreshedPoly := polyring.LagrangeInterpolate(F, iRefresh, vRefresh)
 	newShare := refreshedPoly[0]
-	fmt.Printf("[DPSS Recover] [New Party %v] refresh done\n", p.PID)
+	log.Printf("[DPSS Recover] [New Party %v] refresh done\n", p.PID)
 
 	GenNewCom(ctx, p, ID, F, N, newShare, Shelp, I)
+	p.DpssNewEnd = time.Now()
 	return newShare
 
 }
@@ -255,7 +260,7 @@ func Pmvba(p *party.HonestParty, ID []byte, value []byte, validation []byte) err
 	var MvbaMsg = new(protobuf.MvbaIn)
 	err := proto.Unmarshal(value, MvbaMsg)
 	if err != nil {
-		fmt.Printf("[DPSS MVBA] [New Party %v] parse MvbaIn error: %v\n", p.PID, err)
+		log.Printf("[DPSS MVBA] [New Party %v] parse MvbaIn error: %v\n", p.PID, err)
 		return err
 	}
 
@@ -263,12 +268,12 @@ func Pmvba(p *party.HonestParty, ID []byte, value []byte, validation []byte) err
 	for i := 0; i < len(MvbaMsg.Tuple); i++ {
 		err := blsScheme.Verify(p.SigPK.Commit(), MvbaMsg.Tuple[i].Md, MvbaMsg.Tuple[i].Sig)
 		if err != nil {
-			fmt.Printf("[DPSS MVBA] [New Party %v] invalid signature: %v\n", p.PID, err)
+			log.Printf("[DPSS MVBA] [New Party %v] invalid signature: %v\n", p.PID, err)
 			return fmt.Errorf("[DPSS MVBA] [New Party %v] invalid signature: %v", p.PID, err)
 		}
 		Gsi := parseGsi(MvbaMsg.Tuple[i].Md)
 		if !bls.EqualG1(Gsi, &p.VCom[MvbaMsg.Tuple[i].Index]) {
-			fmt.Printf("[DPSS MVBA] [New Party %v] invalid Gsi\n", p.PID)
+			log.Printf("[DPSS MVBA] [New Party %v] invalid Gsi\n", p.PID)
 			return fmt.Errorf("[DPSS MVBA] [New Party %v] invalid Gsi", p.PID)
 		}
 	}
@@ -312,7 +317,7 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 	msgNewCom.Gsi = bls.ToCompressedG1(&Gsi)
 	data, err := proto.Marshal(msgNewCom)
 	if err != nil {
-		fmt.Printf("[DPSS GenNewCom] [New Party %v] marshal NewCom error: %v\n", p.PID, err)
+		log.Printf("[DPSS GenNewCom] [New Party %v] marshal NewCom error: %v\n", p.PID, err)
 		return
 	}
 	err = p.Broadcast(&protobuf.Message{
@@ -322,10 +327,10 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 		Data:   data,
 	})
 	if err != nil {
-		fmt.Printf("[DPSS GenNewCom] [New Party %v] broadcast NewCom error: %v\n", p.PID, err)
+		log.Printf("[DPSS GenNewCom] [New Party %v] broadcast NewCom error: %v\n", p.PID, err)
 		return
 	}
-	fmt.Printf("[DPSS GenNewCom] [New Party %v] broadcast NewCom\n", p.PID)
+	log.Printf("[DPSS GenNewCom] [New Party %v] broadcast NewCom\n", p.PID)
 
 	var newComCtr = uint32(0)
 	newComList := make([]bls.G1Point, F+1)
@@ -336,7 +341,7 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 		var msg = new(protobuf.NewCom)
 		err := proto.Unmarshal(m.Data, msg)
 		if err != nil {
-			fmt.Printf("[DPSS GenNewCom] [New Party %v] parse NewCom error: %v\n", p.PID, err)
+			log.Printf("[DPSS GenNewCom] [New Party %v] parse NewCom error: %v\n", p.PID, err)
 			continue
 		}
 		Gsi, _ := bls.FromCompressedG1(msg.Gsi)
@@ -348,23 +353,23 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 	newGs := p.InterpolateComOrWitByKnownIndexes(F, 0, newComIndex, newComList)
 	//you may add a "!" operation before bls.EqualG1 to test the pessmistic path
 	if bls.EqualG1(&newGs, &p.Gs) {
-		fmt.Printf("[DPSS GenNewCom] [New Party %v] enter the optimistic path\n", p.PID)
+		log.Printf("[DPSS GenNewCom] [New Party %v] enter the optimistic path\n", p.PID)
 		vNew := make([]bls.G1Point, N)
 		for i := uint32(0); i < N; i++ {
 			vNew[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, newComIndex, newComList)
 		}
-		fmt.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (optimistic path)\n", p.PID)
+		log.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (optimistic path)\n", p.PID)
 		p.SetVCom(vNew)
 		endSignal <- true
 	} else {
-		fmt.Printf("[DPSS GenNewCom] [New Party %v] enter the pessimistic path\n", p.PID)
+		log.Printf("[DPSS GenNewCom] [New Party %v] enter the pessimistic path\n", p.PID)
 
 		//multicast ERROR
 		var msgError = new(protobuf.Err)
 		msgError.Err = []byte("e")
 		data, err = proto.Marshal(msgError)
 		if err != nil {
-			fmt.Printf("[DPSS GenNewCom] [New Party %v] marshal Err error: %v\n", p.PID, err)
+			log.Printf("[DPSS GenNewCom] [New Party %v] marshal Err error: %v\n", p.PID, err)
 			return
 		}
 		err = p.Broadcast(&protobuf.Message{
@@ -374,10 +379,10 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 			Data:   data,
 		})
 		if err != nil {
-			fmt.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr error: %v\n", p.PID, err)
+			log.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr error: %v\n", p.PID, err)
 			return
 		}
-		fmt.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr\n", p.PID)
+		log.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr\n", p.PID)
 
 		//wait for Aux messages. Pj is the sender, who sends the commitments to s_k,j
 		kGsMap := make(map[uint32][]bls.G1Point) //maps the sender of Aux message to the Gs elements in it
@@ -395,13 +400,13 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 			var Auxmsg = new(protobuf.Aux)
 			err := proto.Unmarshal(m.Data, Auxmsg)
 			if err != nil {
-				fmt.Printf("[DPSS GenNewCom] [New Party %v] parse Aux error: %v\n", p.PID, err)
+				log.Printf("[DPSS GenNewCom] [New Party %v] parse Aux error: %v\n", p.PID, err)
 				continue
 			}
 
 			isValid, kList, kGsList := verifyAux(p, Auxmsg, m.Sender)
 			if !isValid {
-				fmt.Printf("[DPSS GenNewCom] [New Party %v] receive invalid Aux message from [New Party %v]\n", p.PID, m.Sender)
+				log.Printf("[DPSS GenNewCom] [New Party %v] receive invalid Aux message from [New Party %v]\n", p.PID, m.Sender)
 				continue
 			}
 			kGsMap[m.Sender] = kGsList
@@ -452,7 +457,7 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 			}
 
 			if newGsCtr > F {
-				fmt.Printf("[DPSS GenNewCom] [New Party %v] receive enough new Gs, newGsCtr=%v\n", p.PID, newGsCtr)
+				log.Printf("[DPSS GenNewCom] [New Party %v] receive enough new Gs, newGsCtr=%v\n", p.PID, newGsCtr)
 				indexList := make([]bls.Fr, N)
 				newGsList := make([]bls.G1Point, N)
 				ctr := 0
@@ -466,7 +471,7 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 				for i := uint32(0); i < N; i++ {
 					vNew[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, indexList[:F+1], newGsList[:F+1])
 				}
-				fmt.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (pessimistic path)\n", p.PID)
+				log.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (pessimistic path)\n", p.PID)
 				p.SetVCom(vNew)
 				endSignal <- true
 				break
@@ -498,7 +503,7 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 			if AuxLen > 0 {
 				data, err = proto.Marshal(AuxMsg)
 				if err != nil {
-					fmt.Printf("[DPSS GenNewCom] [New Party %v] marshal Aux error: %v\n", p.PID, err)
+					log.Printf("[DPSS GenNewCom] [New Party %v] marshal Aux error: %v\n", p.PID, err)
 					return
 				}
 				err = p.Send(&protobuf.Message{

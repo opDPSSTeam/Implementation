@@ -2,6 +2,7 @@ package party
 
 import (
 	"sync"
+	"time"
 
 	kyberbls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/share"
@@ -135,10 +136,15 @@ type HonestParty struct {
 	SigPKNew   *share.PubPoly  //tss pk of next (new) committee
 
 	LagrangeCoefficients [][]bls.Fr //lagrange coefficients when using f(1),f(2),...,f(2t+1) to calculate f(k) for 0 <= k <= 3*f+1.Indices start from 0
+
+	DpssOldStart time.Time
+	DpssOldEnd   time.Time
+	DpssNewStart time.Time
+	DpssNewEnd   time.Time
 }
 
 //NewHonestParty return a new honest party object
-func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, portList []string, ipListOld []string, portListOld []string, ipListNext []string, portListNext []string, sigPK *share.PubPoly, sigPKNew *share.PubPoly, sigSK *share.PriShare, vc *pointproofs.VectorCommit) *HonestParty {
+func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, portList []string, ipListOld []string, portListOld []string, ipListNext []string, portListNext []string, sigPK *share.PubPoly, sigPKNew *share.PubPoly, sigSK *share.PriShare) *HonestParty {
 	var SysSuite = kyberbls.NewBLS12381Suite()
 	tblsScheme := tbls.NewThresholdSchemeOnG1(SysSuite)
 
@@ -182,7 +188,6 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 
 		KZG:      KZG,
 		MutexKZG: &mutexKZG,
-		VC:       vc,
 
 		Share:       bls.ZERO,
 		Gs:          bls.GenG1,
@@ -257,4 +262,8 @@ func (p *HonestParty) SetGs(gs *bls.G1Point) {
 
 func (p *HonestParty) GetVCom(index uint32) *bls.G1Point {
 	return &p.VCom[index]
+}
+
+func (p *HonestParty) SetVC(vc *pointproofs.VectorCommit) {
+	p.VC = vc
 }

@@ -33,6 +33,22 @@ func New(vectorLen uint32) *VectorCommit {
 	}
 }
 
+func (vc *VectorCommit) GetIndex() uint32 {
+	return vc.index
+}
+
+func (vc *VectorCommit) GetSrs() string {
+	return vc.srs
+}
+
+func (vc *VectorCommit) SetIndex(index uint32) {
+	vc.index = index
+}
+
+func (vc *VectorCommit) SetSrs(srs string) {
+	vc.srs = srs
+}
+
 func frToString(fr *kbls.Fr) string {
 	bytes := fr.ToBytes()
 	for i, j := 0, len(bytes)-1; i < j; i, j = i+1, j-1 {

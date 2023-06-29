@@ -15,7 +15,8 @@ func TestUtils(t *testing.T) {
 	F := uint32(1)
 	sk, pk := SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	vc := pointproofs.New(N)
-	p := NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1], vc)
+	p := NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
+	p.SetVC(vc)
 
 	var v VShare
 	var pi PiShare

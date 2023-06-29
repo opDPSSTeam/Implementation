@@ -22,3 +22,7 @@ go.work
 
 .DS_Store
 .idea
+
+cmd/metadata
+cmd/coefficients
+cmd/coefficients_new

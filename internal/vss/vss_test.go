@@ -19,7 +19,8 @@ func TestVSS(t *testing.T) {
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	vc := pointproofs.New(N)
-	client := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1], vc)
+	client := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
+	client.SetVC(vc)
 
 	var secret bls.Fr
 	bls.AsFr(&secret, uint64(12345))

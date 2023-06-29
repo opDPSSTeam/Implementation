@@ -2,7 +2,7 @@ package wpACSS
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"sync"
 	"testing"
 
@@ -24,9 +24,8 @@ func TestGenRecPoly(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
-	vc := pointproofs.New(N)
 
-	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1], vc)
+	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
 
 	//uncomment the block comment in genRecPoly to test
 	genRecPoly(p, F, N)
@@ -44,7 +43,8 @@ func TestShare(t *testing.T) {
 
 	var p []*party.HonestParty = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -73,9 +73,9 @@ func TestShare(t *testing.T) {
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
 		if err != nil {
-			fmt.Printf("error: %v\n", err)
+			log.Printf("error: %v\n", err)
 		} else {
-			fmt.Println("Verify full signature ok")
+			log.Println("Verify full signature ok")
 		}
 		wg.Done()
 	}()
@@ -84,7 +84,7 @@ func TestShare(t *testing.T) {
 		go func(i uint32) {
 			vShare, _, err := WpAcssShareEcho(p[i], false, ID)
 			if err != nil {
-				fmt.Printf("error: %v\n", err)
+				log.Printf("error: %v\n", err)
 				wg.Done()
 			} else {
 				shares[i] = vShare.S
@@ -98,7 +98,7 @@ func TestShare(t *testing.T) {
 		bls.AsFr(&pos[i], uint64(i+1))
 	}
 	poly := polyring.LagrangeInterpolate(F, pos[:F+2], shares[:F+2])
-	fmt.Println("poly: ", party.PolyToString(poly))
+	log.Println("poly: ", party.PolyToString(poly))
 }
 
 func TestCallHelp(t *testing.T) {
@@ -111,7 +111,8 @@ func TestCallHelp(t *testing.T) {
 
 	var p []*party.HonestParty = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -138,7 +139,8 @@ func TestRecContrib(t *testing.T) {
 
 	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -166,9 +168,9 @@ func TestRecContrib(t *testing.T) {
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
 		if err != nil {
-			fmt.Printf("error: %v\n", err)
+			log.Printf("error: %v\n", err)
 		} else {
-			fmt.Println("Verify full signature ok")
+			log.Println("Verify full signature ok")
 		}
 		wg.Done()
 	}()
@@ -177,7 +179,7 @@ func TestRecContrib(t *testing.T) {
 		go func(i uint32) {
 			vShare, _, err := WpAcssShareEcho(p[i], false, ID)
 			if err != nil {
-				fmt.Printf("error: %v\n", err)
+				log.Printf("error: %v\n", err)
 				wg.Done()
 			} else {
 				shares[i] = vShare.S
@@ -197,13 +199,13 @@ func TestRecContrib(t *testing.T) {
 			cont := recContrib(p[helperID], ID, F, dealerID, callerID, *p[helperID].GetVShare(dealerID), *p[helperID].GetPiShare(dealerID))
 			vrf := vrfyRecCont(p[callerID], ID, F, cont)
 			assert.True(t, vrf, "Verify contribution failed")
-			fmt.Printf("Party %v has generated a valid RecCont for caller %v\n", i, callerID)
+			log.Printf("Party %v has generated a valid RecCont for caller %v\n", i, callerID)
 		}
 	}
 
 	//verify the combination of recContrib
 	callerID = uint32(3)
-	fmt.Printf("original share: %v\n", p[callerID].GetVShare(dealerID).S.String())
+	log.Printf("original share: %v\n", p[callerID].GetVShare(dealerID).S.String())
 
 	contList := make([]RecCont, N)
 	for helperID := uint32(0); helperID < N; helperID++ {
@@ -230,7 +232,7 @@ func TestRecContrib(t *testing.T) {
 	Fd, _ := dprf.Combine(p[callerID], F, utils.Uint32ToBytes(callerID+1), IdxList, DPRFContribList, piDPRFList)
 	bls.SubModFr(&sRec, &smi, &Fd)
 
-	fmt.Printf("recovered share: %v\n", sRec.String())
+	log.Printf("recovered share: %v\n", sRec.String())
 	assert.True(t, bls.EqualFr(&sRec, &p[callerID].GetVShare(dealerID).S), "Recover share failed")
 }
 
@@ -245,7 +247,8 @@ func TestRecover(t *testing.T) {
 
 	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
-		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i], vc)
+		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -273,9 +276,9 @@ func TestRecover(t *testing.T) {
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
 		if err != nil {
-			fmt.Printf("error: %v\n", err)
+			log.Printf("error: %v\n", err)
 		} else {
-			fmt.Println("Verify full signature ok")
+			log.Println("Verify full signature ok")
 		}
 		wg.Done()
 	}()
@@ -284,7 +287,7 @@ func TestRecover(t *testing.T) {
 		go func(i uint32) {
 			vShare, _, err := WpAcssShareEcho(p[i], false, ID)
 			if err != nil {
-				fmt.Printf("error: %v\n", err)
+				log.Printf("error: %v\n", err)
 				wg.Done()
 			} else {
 				shares[i] = vShare.S
@@ -299,7 +302,7 @@ func TestRecover(t *testing.T) {
 	var originalShare, recoveredShare bls.Fr
 	//this is the original share from dealer
 	originalShare = p[callerID].GetVShare(dealerID).S
-	fmt.Printf("original share: %v\n", originalShare.String())
+	log.Printf("original share: %v\n", originalShare.String())
 
 	CallHelp(p[callerID], ID, F, N, []uint32{dealerID})
 
@@ -310,9 +313,9 @@ func TestRecover(t *testing.T) {
 	go func() {
 		res := WaitHelp(p[callerID], ID, F, N, []uint32{dealerID})
 		recoveredShare = res[dealerID]
-		fmt.Printf("recovered share: %v\n", recoveredShare.String())
+		log.Printf("recovered share: %v\n", recoveredShare.String())
 		wg.Done()
-		fmt.Printf("Party %v has recovered the secret for dealerID = %v\n", callerID, dealerID)
+		log.Printf("Party %v has recovered the secret for dealerID = %v\n", callerID, dealerID)
 	}()
 	wg.Wait()
 
