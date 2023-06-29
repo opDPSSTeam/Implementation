@@ -45,7 +45,7 @@ func main() {
 		ID := utils.IntToBytes(1) //ID should be generated in this way (constraints in the implementation of MVBA)
 		switch *option2 {
 		case "old":
-			OutputLog, err := os.OpenFile(*metadataPath+"/exeLogOld"+strconv.Itoa(*id), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+			OutputLog, err := os.OpenFile(*metadataPath+"/exeLogOld"+strconv.Itoa(*id)+".log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 			if err != nil {
 				log.Fatalf("error opening file: %v", err)
 			}
@@ -86,14 +86,14 @@ func main() {
 			log.Printf("[DPSS] [Old Party %v] DpssOld finished\n", p.PID)
 			fmt.Printf("[DPSS] [Old Party %v] DpssOld finished\n", p.PID)
 
-			f, _ := os.OpenFile(*metadataPath+"/logold"+strconv.Itoa(int(p.PID)), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
+			f, _ := os.OpenFile(*metadataPath+"/result_old"+strconv.Itoa(int(p.PID))+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 			defer f.Close()
 			// fmt.Fprintf(f, "PrepareLatenncyOld,%d\n", p.PrepareEnd_old.Sub(p.PrepareStart_old).Nanoseconds())
 			// fmt.Fprintf(f, "ShareReduceLatencyOld, %d\n", p.ShareReduceEnd_old.Sub(p.ShareReduceStart_old).Nanoseconds())
 
 			time.Sleep(2000 * time.Second)
 		case "new":
-			OutputLog, err := os.OpenFile(*metadataPath+"/exeLogNew"+strconv.Itoa(*id), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+			OutputLog, err := os.OpenFile(*metadataPath+"/exeLogNew"+strconv.Itoa(*id)+".log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 			if err != nil {
 				log.Fatalf("error opening file: %v", err)
 			}
@@ -119,7 +119,7 @@ func main() {
 			log.Printf("[DPSS][New Party %v] DpssNew finished\n", p.PID)
 			fmt.Printf("[DPSS][New Party %v] DpssNew finished\n", p.PID)
 
-			f, _ := os.OpenFile(*metadataPath+"/lognew"+strconv.Itoa(int(p.PID)), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
+			f, _ := os.OpenFile(*metadataPath+"/result_new"+strconv.Itoa(int(p.PID))+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 			defer f.Close()
 			// fmt.Fprintf(f, "PrepareLatenncyNew,%d\n", p.PrepareEnd_new.Sub(p.PrepareStart_new).Nanoseconds())
 			// fmt.Fprintf(f, "ShareReduceLatencyNew, %d\n", p.ShareReduceEnd_new.Sub(p.ShareReduceStart_new).Nanoseconds())

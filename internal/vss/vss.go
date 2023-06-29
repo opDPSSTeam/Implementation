@@ -1,7 +1,7 @@
 package vss
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/party"
@@ -44,7 +44,7 @@ func VssShare(p *party.HonestParty, f uint32, n uint32, s bls.Fr) (*bls.G1Point,
 
 func MakeSecret(p *party.HonestParty, f uint32, n uint32, I []bls.Fr, y []bls.Fr) []bls.Fr {
 	if len(I) != len(y) || len(I) == 0 || len(I) > int(f) {
-		fmt.Println("invalid input: too long or |I|=0")
+		log.Println("invalid input: too long or |I|=0")
 	}
 
 	value := make([]bls.Fr, f+1)
