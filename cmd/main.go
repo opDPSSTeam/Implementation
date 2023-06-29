@@ -57,9 +57,8 @@ func main() {
 			ipListNext := ReadIpList(*ListPath, "Next")[0:*N]
 			portListNext := ReadPortList(*ListPath, "Next")[0:*N]
 			p := party.NewHonestParty(0, uint32(*N), uint32(*F), uint32(*id), ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[*id])
-			// p := party.NewHonestParty(0, uint32(*N), uint32(*F), uint32(*id), ipList, portList, ipListNext, portListNext, pk, sk[*id])
-			p.InitReceiveChannel()
 
+			p.InitReceiveChannel()
 			time.Sleep(time.Duration(*interval2) * time.Second) //waiting for all nodes to initialize their ReceiveChannel
 
 			p.InitSendChannel()
@@ -68,7 +67,6 @@ func main() {
 			fmt.Printf("[VSS][Old Party %v] starting...\n", p.PID)
 
 			// we let p[0] be the dealer to distribute the old shares
-
 			var secret bls.Fr
 			bls.AsFr(&secret, uint64(12345))
 
@@ -88,8 +86,8 @@ func main() {
 
 			f, _ := os.OpenFile(*metadataPath+"/result_old"+strconv.Itoa(int(p.PID))+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 			defer f.Close()
-			// fmt.Fprintf(f, "PrepareLatenncyOld,%d\n", p.PrepareEnd_old.Sub(p.PrepareStart_old).Nanoseconds())
-			// fmt.Fprintf(f, "ShareReduceLatencyOld, %d\n", p.ShareReduceEnd_old.Sub(p.ShareReduceStart_old).Nanoseconds())
+			fmt.Fprintf(f, "DpssOldStart, %d\n", p.DpssOldStart.UnixNano())
+			fmt.Fprintf(f, "DpssOldEnd, %d\n", p.DpssOldEnd.UnixNano())
 
 			time.Sleep(2000 * time.Second)
 		case "new":
@@ -105,8 +103,8 @@ func main() {
 			ipListNext := ReadIpList(*ListPath, "Next")[0:*N]
 			portListNext := ReadPortList(*ListPath, "Next")[0:*N]
 			p := party.NewHonestParty(1, uint32(*N), uint32(*F), uint32(*id), ipListNext, portListNext, ipListOld, portListOld, nil, nil, pkNew, nil, skNew[*id])
-			p.InitReceiveChannel()
 
+			p.InitReceiveChannel()
 			time.Sleep(time.Duration(*interval1) * time.Second) //waiting for all nodes to initialize their ReceiveChannel
 
 			p.InitSendChannel()
@@ -121,10 +119,8 @@ func main() {
 
 			f, _ := os.OpenFile(*metadataPath+"/result_new"+strconv.Itoa(int(p.PID))+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 			defer f.Close()
-			// fmt.Fprintf(f, "PrepareLatenncyNew,%d\n", p.PrepareEnd_new.Sub(p.PrepareStart_new).Nanoseconds())
-			// fmt.Fprintf(f, "ShareReduceLatencyNew, %d\n", p.ShareReduceEnd_new.Sub(p.ShareReduceStart_new).Nanoseconds())
-			// fmt.Fprintf(f, "ProactivizeLatency, %d\n", p.ProactivizeEnd.Sub(p.ProactivizeStart).Nanoseconds())
-			// fmt.Fprintf(f, "ShareDistLatency, %d\n", p.ShareDistEnd.Sub(p.ShareDistStart).Nanoseconds())
+			fmt.Fprintf(f, "DpssNewStart, %d\n", p.DpssNewStart.UnixNano())
+			fmt.Fprintf(f, "DpssNewEnd, %d\n", p.DpssNewEnd.UnixNano())
 
 			time.Sleep(2000 * time.Second)
 		}

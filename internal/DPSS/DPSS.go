@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	kyberbls "github.com/drand/kyber-bls12381"
 	blsSig "github.com/drand/kyber/sign/bls"
@@ -20,6 +21,8 @@ import (
 
 //DpssOld is the old party's procedures in DPSS
 func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N uint32) {
+
+	p.DpssOldStart = time.Now()
 
 	vgBytes := make([][]byte, N)
 	for i := uint32(0); i < N; i++ {
@@ -64,10 +67,13 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	}
 	log.Printf("[DPSS Reshare] [Old Party %v] multicast DpssProof done\n", p.PID)
 
+	p.DpssOldEnd = time.Now()
 }
 
 //DpssNew is the new party's procedures in DPSS
 func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N uint32) bls.Fr {
+
+	p.DpssNewStart = time.Now()
 
 	//start wpACSS instances to receive shares from old parties
 	go func() {
@@ -247,8 +253,8 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	log.Printf("[DPSS Recover] [New Party %v] refresh done\n", p.PID)
 
 	GenNewCom(ctx, p, ID, F, N, newShare, Shelp, I)
+	p.DpssNewEnd = time.Now()
 	return newShare
-
 }
 
 func Pmvba(p *party.HonestParty, ID []byte, value []byte, validation []byte) error {

@@ -2,6 +2,7 @@ package party
 
 import (
 	"sync"
+	"time"
 
 	kyberbls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/share"
@@ -134,6 +135,11 @@ type HonestParty struct {
 	SigPKNew   *share.PubPoly  //tss pk of next (new) committee
 
 	LagrangeCoefficients [][]bls.Fr //lagrange coefficients when using f(1),f(2),...,f(2t+1) to calculate f(k) for 0 <= k <= 3*f+1.Indices start from 0
+
+	DpssOldStart time.Time
+	DpssOldEnd   time.Time
+	DpssNewStart time.Time
+	DpssNewEnd   time.Time
 }
 
 //NewHonestParty return a new honest party object

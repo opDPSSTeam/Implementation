@@ -1,11 +1,8 @@
 package dpss
 
 import (
-	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 
@@ -196,30 +193,6 @@ func TestDpssNew(t *testing.T) {
 	}
 }
 
-func TestSplitMd(t *testing.T) {
-	var md []byte
-	g1 := bls.GenG1
-	g1Compressed := bls.ToCompressedG1(&g1)
-	fmt.Printf("len(g1Compressed): %v\n", len(g1Compressed))
-	strG1Comp := hex.EncodeToString(g1Compressed)
-	fmt.Printf("len([]byte(strG1Comp)): %v\n", len([]byte(strG1Comp)))
-	md = append([]byte("||"), []byte(strG1Comp)...)
-	md = append(md, []byte("||")...)
-	str := string(md)
-	fmt.Printf("str: %v\n", str)
-	s := strings.Split(str, "||")
-	fmt.Printf("s: %v\n", s[1])
-	decS, _ := hex.DecodeString(s[1])
-	g2, _ := bls.FromCompressedG1(decS)
-	fmt.Printf("bls.EqualG1(&g1, g2): %v\n", bls.EqualG1(&g1, g2))
-
-	md2 := append([]byte("||"), g1Compressed...)
-	md2 = append(md2, []byte("||")...)
-	res := bytes.Split(md2, []byte("||"))
-	g3, _ := bls.FromCompressedG1(res[1])
-	fmt.Printf("bls.EqualG1(&g1, g3): %v\n", bls.EqualG1(&g1, g3))
-}
-
 func TestSubstractSet(t *testing.T) {
 	a := []uint32{1, 2, 3, 4, 5}
 	b := []uint32{1, 2, 3}
@@ -248,5 +221,4 @@ func TestReconstruct(t *testing.T) {
 	poly := polyring.LagrangeInterpolate(F, pos[:F+2], newShares[:F+2])
 	fmt.Println("poly: ", party.PolyToString(poly))
 	assert.True(t, bls.EqualFr(&secret, &poly[0]), "Reconstruct secret from the newshares fail")
-
 }
