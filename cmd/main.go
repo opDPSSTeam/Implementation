@@ -63,8 +63,8 @@ func main() {
 
 			p.InitSendChannel()
 			p.InitSendToNextChannel()
-			log.Printf("[VSS][Old Party %v] starting...\n", p.PID)
-			fmt.Printf("[VSS][Old Party %v] starting...\n", p.PID)
+			log.Printf("[Init][Old Party %v] starting...\n", p.PID)
+			fmt.Printf("[Init][Old Party %v] starting...\n", p.PID)
 
 			// we let p[0] be the dealer to distribute the old shares
 			var secret bls.Fr
@@ -74,8 +74,8 @@ func main() {
 				sendInitShares(p, ID, secret)
 			}
 			receiveInitShares(p, ID)
-			log.Printf("[VSS][Old Party %v] VSS finished\n", p.PID)
-			fmt.Printf("[VSS][Old Party %v] VSS finished\n", p.PID)
+			log.Printf("[Init][Old Party %v] Get init share finished\n", p.PID)
+			fmt.Printf("[Init][Old Party %v] Get init share finished\n", p.PID)
 
 			log.Printf("[DPSS][Old Party %v] DpssOld starting...\n", p.PID)
 			fmt.Printf("[DPSS][Old Party %v] DpssOld starting...\n", p.PID)
@@ -84,7 +84,7 @@ func main() {
 			log.Printf("[DPSS] [Old Party %v] DpssOld finished\n", p.PID)
 			fmt.Printf("[DPSS] [Old Party %v] DpssOld finished\n", p.PID)
 
-			f, _ := os.OpenFile(*metadataPath+"/result_old"+strconv.Itoa(int(p.PID))+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
+			f, _ := os.OpenFile(*metadataPath+"/resultOld"+strconv.Itoa(int(p.PID))+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 			defer f.Close()
 			fmt.Fprintf(f, "DpssOldStart, %d\n", p.DpssOldStart.UnixNano())
 			fmt.Fprintf(f, "DpssOldEnd, %d\n", p.DpssOldEnd.UnixNano())
@@ -117,7 +117,7 @@ func main() {
 			log.Printf("[DPSS][New Party %v] DpssNew finished\n", p.PID)
 			fmt.Printf("[DPSS][New Party %v] DpssNew finished\n", p.PID)
 
-			f, _ := os.OpenFile(*metadataPath+"/result_new"+strconv.Itoa(int(p.PID))+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
+			f, _ := os.OpenFile(*metadataPath+"/resultNew"+strconv.Itoa(int(p.PID))+".log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 			defer f.Close()
 			fmt.Fprintf(f, "DpssNewStart, %d\n", p.DpssNewStart.UnixNano())
 			fmt.Fprintf(f, "DpssNewEnd, %d\n", p.DpssNewEnd.UnixNano())
