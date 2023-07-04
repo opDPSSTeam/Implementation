@@ -267,7 +267,8 @@ func verifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiSh
 }
 
 func genRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr, []party.PiRec) {
-	dsk, _, Cdk, dskShare, _, wdk := dprf.InitDPRF(p, f, n)
+	dsk, _, PCdsk, VCdpk, dskShare, _, wdsk, piDpk := dprf.InitDPRF(p, f, n)
+
 	y := make([]bls.Fr, n)
 	I := make([]bls.Fr, n)
 
@@ -319,8 +320,8 @@ func genRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr,
 	   	} */
 
 	for i := uint32(0); i < n; i++ {
-		bls.CopyG1(&piRec[i].Cdk, Cdk)
-		bls.CopyG1(&piRec[i].Wdki, &wdk[i])
+		bls.CopyG1(&piRec[i].Cdk, PCdsk)
+		bls.CopyG1(&piRec[i].Wdki, &wdsk[i])
 		for k := uint32(0); k < ell; k++ {
 			bls.CopyG1(&piRec[i].Crec[k], Crec[k])
 			bls.CopyG1(&piRec[i].Weval[k], &weval[k][i])

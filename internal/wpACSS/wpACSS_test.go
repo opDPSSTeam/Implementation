@@ -215,7 +215,7 @@ func TestRecContrib(t *testing.T) {
 	IdxList := make([]bls.Fr, F+1)
 	smList := make([]bls.Fr, F+1)
 	DPRFContribList := make([]bls.G1Point, F+1)
-	piDPRFList := make([]*dprf.PiDPRF, F+1)
+	piDPRFList := make([]*dprf.ProofDPRF, F+1)
 
 	for i := uint32(0); i < F+1; i++ {
 		bls.AsFr(&IdxList[i], uint64(i+1))

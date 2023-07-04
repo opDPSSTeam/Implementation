@@ -23,18 +23,18 @@ func TestDPRF(t *testing.T) {
 	p.SetVC(vc)
 
 	//test InitDPRF() and VrfyKey()
-	dsk, dpk, Cdk, dski, dvki, wdki := InitDPRF(p, F, N)
+	dsk, dpk, PCdsk, VCdpk, dski, dpki, wdski, piDpk := InitDPRF(p, F, N)
 
-	var tmp bls.G1Point
-	bls.MulG1(&tmp, &bls.GenG1, dsk)
-	if !bls.EqualG1(dpk, &tmp) {
+	var tmp bls.G2Point
+	bls.MulG2(&tmp, &bls.GenG2, dsk)
+	if !bls.EqualG2(dpk, &tmp) {
 		t.Errorf("dpk is not equal to g^dsk")
 	}
 
 	index := make([]bls.Fr, N)
 	for i := uint32(0); i < N; i++ {
 		bls.AsFr(&index[i], uint64(i+1)) // Indexes = [1, ..., N]
-		if !VrfyKey(p, index[i], dski[i], dvki[i], *Cdk, wdki[i]) {
+		if !VrfyKey(p, index[i], dski[i], dpki[i], *PCdsk, VCdpk, wdski[i], piDpk[i]) {
 			t.Errorf("Vrfy DPRF keys failed")
 		}
 	}
@@ -48,24 +48,24 @@ func TestDPRF(t *testing.T) {
 	fmt.Printf("random message x=%s\n", hex.EncodeToString(x))
 
 	W := make([]bls.G1Point, N)
-	pi := make([]*PiDPRF, N)
+	pi := make([]*ProofDPRF, N)
 	for i := uint32(0); i < N; i++ {
 		//fmt.Printf("Contrib, i=%d\n", i)
-		W[i], pi[i] = Contrib(p, x, dski[i], dvki[i])
+		W[i], pi[i] = Contrib(x, dski[i], dpki[i], piDpk[i])
 		//fmt.Printf("VrfyContrib, i=%d\n", i)
-		if !VrfyContrib(W[i], pi[i]) {
+		if !VrfyContrib(W[i], pi[i], VCdpk) {
 			t.Errorf("Vrfy DPRF contribution failed for i=%d", i)
 		}
 	}
 
 	//test Combine()
-	v1, err := Combine(p, F, x, index[:F+1], W[:F+1], pi[:F+1])
+	v1, err := Combine(p, F, x, index[:F+1], W[:F+1], pi[:F+1], VCdpk)
 	if err != nil {
 		fmt.Printf("error while combining: %s\n", err)
 		t.Errorf("DPRF combine failed")
 	}
 	v2 := Eval(x, *dsk)
-	if !bls.EqualFr(&v1, &v2) {
+	if !bls.EqualG1(&v1, &v2) {
 		fmt.Printf("v1=%s\n", v1.String())
 		fmt.Printf("v2=%s\n", v2.String())
 		t.Errorf("DPRF combine failed")
