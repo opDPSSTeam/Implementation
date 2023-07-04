@@ -36,8 +36,8 @@ func TestVerifyMerkleTreeProof(t *testing.T) {
 	data := [][]byte{
 		[]byte("hi"),
 		[]byte("hello"),
-		[]byte("fuck"),
-		[]byte("who"),
+		[]byte("halo"),
+		[]byte("nihao"),
 	}
 	tre, err := NewMerkleTree(data)
 	if err != nil {

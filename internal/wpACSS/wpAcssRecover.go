@@ -17,7 +17,7 @@ type PiHelp struct {
 	Cdk    bls.G1Point
 	Cmask  bls.G1Point
 	wiMask bls.G1Point
-	piDPRF dprf.PiDPRF
+	piDPRF dprf.ProofDPRF
 }
 
 type RecCont struct {
@@ -115,14 +115,14 @@ func Help(p *party.HonestParty, ID []byte, F uint32, N uint32) {
 }
 
 func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint32) map[uint32]bls.Fr {
-	var CdkCounterMap = make(map[bls.G1Point]int)          //the number of times Cdk appears in the received help messages
-	var CdkDealerMap = make(map[bls.G1Point]uint32)        //maps Cdk to the dealerID
-	var CdkHelperMap = make(map[bls.G1Point][]uint32)      //records the helpers' indexes for the same Cdk
-	var CdkSmaskMap = make(map[bls.G1Point][]bls.Fr)       //records the sMasked for the same Cdk
-	var CdkDPRFMap = make(map[bls.G1Point][]bls.G1Point)   //records the DPRFContribF for the same Cdk
-	var CdkPiDPRFMap = make(map[bls.G1Point][]dprf.PiDPRF) //records the PiDPRF for the same Cdk
-	var HelperResMap = make(map[uint32][]RecCont)          //maps helperID to the received RecConts
-	var SrecMap = make(map[uint32]bls.Fr)                  //maps dealerID to the recovered s_{d,i}
+	var CdkCounterMap = make(map[bls.G1Point]int)             //the number of times Cdk appears in the received help messages
+	var CdkDealerMap = make(map[bls.G1Point]uint32)           //maps Cdk to the dealerID
+	var CdkHelperMap = make(map[bls.G1Point][]uint32)         //records the helpers' indexes for the same Cdk
+	var CdkSmaskMap = make(map[bls.G1Point][]bls.Fr)          //records the sMasked for the same Cdk
+	var CdkDPRFMap = make(map[bls.G1Point][]bls.G1Point)      //records the DPRFContribF for the same Cdk
+	var CdkPiDPRFMap = make(map[bls.G1Point][]dprf.ProofDPRF) //records the ProofDPRF for the same Cdk
+	var HelperResMap = make(map[uint32][]RecCont)             //maps helperID to the received RecConts
+	var SrecMap = make(map[uint32]bls.Fr)                     //maps dealerID to the recovered s_{d,i}
 
 	var recoveredCtr int = 0
 
@@ -165,14 +165,14 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 				CdkSmaskMap[tmpCdk] = []bls.Fr{res[i].sMasked}
 				CdkDealerMap[tmpCdk] = res[i].dealerID
 				CdkDPRFMap[tmpCdk] = []bls.G1Point{res[i].DPRFContribF}
-				CdkPiDPRFMap[tmpCdk] = []dprf.PiDPRF{res[i].piHelp.piDPRF}
+				CdkPiDPRFMap[tmpCdk] = []dprf.ProofDPRF{res[i].piHelp.piDPRF}
 			}
 		}
 
 		var IdxList = make([]bls.Fr, F+1)
 		var yList = make([]bls.Fr, F+1)
 		var ContribList = make([]bls.G1Point, F+1)
-		var piDPRFList = make([]*dprf.PiDPRF, F+1)
+		var piDPRFList = make([]*dprf.ProofDPRF, F+1)
 		// check if there exists a Cdk that appears more than F+1 times
 		for i := 0; i < lenRes; i++ {
 			tmpCdk := res[i].piHelp.Cdk
@@ -256,7 +256,7 @@ func recContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, call
 	bls.AddModFr(&sMasked, &v.S, &v.RecPolyEval[index])
 	bls.AddG1(&wiMask, &pi.Wvssi, &pi.PiRec.Weval[index])
 	bls.AddG1(&Cmask, &pi.Cvss, &pi.PiRec.Crec[index])
-	DPRFContribF, piDPRF := dprf.Contrib(p, utils.Uint32ToBytes(callerID+1), p.DSKi[dealerID], p.DVKi[dealerID])
+	DPRFContribF, piDPRF := dprf.Contrib(utils.Uint32ToBytes(callerID+1), p.DSKi[dealerID], p.DVKi[dealerID])
 	piHelp := PiHelp{
 		Gs:     pi.Gs,
 		Cdk:    pi.PiRec.Cdk,
