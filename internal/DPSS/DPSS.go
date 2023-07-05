@@ -44,7 +44,7 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	}
 	log.Printf("[DPSS Commit] [Old Party %v] multicast DpssCom done\n", p.PID)
 
-	md, sig := wpACSS.WpAcssShareSend(ctx, p, ID, false, F, N, p.Share)
+	md, sig := wpACSS.ShareSend(ctx, p, ID, false, F, N, p.Share)
 
 	//the following block is for testing
 	/* 	blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
@@ -224,14 +224,14 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 
 	go func() {
 		if len(Shelp) > 0 {
-			wpACSS.CallHelp(p, ID, F, N, Shelp)
+			wpACSS.CallHelp(p, ID, Shelp)
 			recoverResChan <- wpACSS.WaitHelp(p, ID, F, N, Shelp) //wait for others' help
 		} else {
 			log.Printf("[DPSS Recover] [New Party %v] no help needed\n", p.PID)
 		}
 	}()
 
-	go wpACSS.Help(p, ID, F, N) //answer others' help
+	go wpACSS.Help(p, ID, F) //answer others' help
 
 	if len(Shelp) > 0 {
 		SrecMap = <-recoverResChan //wait for the recovery result
@@ -500,10 +500,10 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 				AuxMsg.Cont[index].K = k
 				bls.MulG1(&tmpGs, &bls.GenG1, &p.GetVShare(k).S)
 				AuxMsg.Cont[index].Gs = bls.ToCompressedG1(&tmpGs)
-				AuxMsg.Cont[index].Cvcom = p.GetPiShare(k).Cvcom
+				AuxMsg.Cont[index].Cvcom = p.GetPiShare(k).VCvs
 				AuxMsg.Cont[index].PiVcom = new(protobuf.PiVcomMerkle)
-				AuxMsg.Cont[index].PiVcom.Path = p.GetPiShare(k).PiVcom.Path
-				AuxMsg.Cont[index].PiVcom.Indicator = p.GetPiShare(k).PiVcom.Indicator
+				AuxMsg.Cont[index].PiVcom.Path = p.GetPiShare(k).PiVs.Path
+				AuxMsg.Cont[index].PiVcom.Indicator = p.GetPiShare(k).PiVs.Indicator
 			}
 		}
 

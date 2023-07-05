@@ -50,7 +50,7 @@ func TestDPRF(t *testing.T) {
 		//fmt.Printf("Contrib, i=%d\n", i)
 		W[i], pi[i] = Contrib(x, dski[i], dpki[i], piDpk[i])
 		//fmt.Printf("VrfyContrib, i=%d\n", i)
-		if !VrfyContrib(W[i], pi[i], VCdpk) {
+		if !VrfyContrib(x, W[i], pi[i], VCdpk) {
 			t.Errorf("Vrfy DPRF contribution failed for i=%d", i)
 		}
 	}

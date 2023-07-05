@@ -105,9 +105,9 @@ message BLockSetValidation{
 
 //wpACSS
 message vInShare{
-  bytes s=1;
-  bytes dskShare=2;
-  repeated bytes recPolyEval = 3;
+  string s=1;
+  string dskShare=2;
+  repeated string recPolyEval = 3;
 }
 
 message PiVcomMerkle{
@@ -115,22 +115,25 @@ message PiVcomMerkle{
   repeated int64 indicator = 2;
 }
 
-message PiRec{
-  bytes Cdk=1;
-  bytes wdki=2;
-  repeated bytes Crec=3;
-  repeated bytes weval=4;
+message ProofRec{
+  bytes dpki=1;
+  bytes PCdsk=2;
+  bytes VCdpk=3;
+  bytes wdski=4;
+  PiVcomMerkle piDpki=5;
+  repeated bytes PCphi=6;
+  repeated bytes wphi=7;
 }
 
 message piInShare{
   bytes Gs=1;
-  bytes Cvss=2;
+  bytes PCvss=2;
   bytes wvssi=3;
-  bytes Cz=4;
+  bytes PCz=4;
   bytes wz0 = 5;
-  bytes Cvcom=6;
-  PiVcomMerkle piVcom=7;
-  PiRec piRec=8;
+  bytes VCvs=6;
+  PiVcomMerkle piVs=7;
+  ProofRec proofRec=8;
 }
 
 message wpAcssShare{
@@ -147,26 +150,27 @@ message wpAcssCallHelp{
   repeated uint32 indices = 2;
 }
 
-message piDPRF{
+message proofDPRF{
   bytes w=1;
   bytes c=2;
   bytes u=3;
-  bytes dvk=4;
+  bytes dpk=4;
+  PiVcomMerkle piDpk=5;
 }
 
-message piHelp{
+message proofHelp{
   bytes Gs=1;
-  bytes Cdk =2;
-  bytes Cmask =3;
+  bytes PCdsk =2;
+  bytes PCmask =3;
   bytes wiMask =4;
-  piDPRF piDPRF = 5;
+  proofDPRF proofDPRF = 5;
 }
 
 message RecCont{
   uint32 dealerID = 1;
   bytes sMasked = 2;
   bytes DPRFContribF = 3;
-  piHelp piHelp = 4;
+  proofHelp piHelp = 4;
 }
 
 message wpAcssHelp{

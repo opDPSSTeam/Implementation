@@ -54,16 +54,19 @@ func InitDPRF(p *party.HonestParty, F uint32, N uint32) (*bls.Fr, *bls.G2Point, 
 	return &dsk, &dpk, PCdsk, VCdpk, dskShare[1:], dpkShare, wdsk[1:], piDpk
 }
 
-func EncapsulatePiDPRF(pi *ProofDPRF) *protobuf.PiDPRF {
-	var msg = new(protobuf.PiDPRF)
+func EncapsulatePiDPRF(pi *ProofDPRF) *protobuf.ProofDPRF {
+	var msg = new(protobuf.ProofDPRF)
 	msg.W = bls.ToCompressedG1(&pi.w)
 	msg.C = []byte(pi.c.String())
 	msg.U = []byte(pi.u.String())
-	msg.Dvk = bls.ToCompressedG2(&pi.dpki)
+	msg.Dpk = bls.ToCompressedG2(&pi.dpki)
+	msg.PiDpk = new(protobuf.PiVcomMerkle)
+	msg.PiDpk.Path = pi.piDpki.Path
+	msg.PiDpk.Indicator = pi.piDpki.Indicator
 	return msg
 }
 
-func DecapsulatePiDPRF(msg *protobuf.PiDPRF) *ProofDPRF {
+func DecapsulatePiDPRF(msg *protobuf.ProofDPRF) *ProofDPRF {
 	//FIXME: error handling
 	var pi = new(ProofDPRF)
 	wRaw, _ := bls.FromCompressedG1(msg.W)
@@ -74,8 +77,10 @@ func DecapsulatePiDPRF(msg *protobuf.PiDPRF) *ProofDPRF {
 	uRaw := new(bls.Fr)
 	bls.SetFr(uRaw, string(msg.U))
 	bls.CopyFr(&pi.u, uRaw)
-	dvkRaw, _ := bls.FromCompressedG2(msg.Dvk)
+	dvkRaw, _ := bls.FromCompressedG2(msg.Dpk)
 	bls.CopyG2(&pi.dpki, dvkRaw)
+	pi.piDpki.Path = msg.PiDpk.Path
+	pi.piDpki.Indicator = msg.PiDpk.Indicator
 	return pi
 }
 
@@ -134,7 +139,17 @@ func Contrib(x []byte, dski bls.Fr, dpki bls.G2Point, piDpki vectorcommitment.Pi
 	return W, proof
 }
 
-func VrfyContrib(W bls.G1Point, pi *ProofDPRF, VCdpk []byte) bool {
+func VrfyContrib(x []byte, W bls.G1Point, pi *ProofDPRF, VCdpk []byte) bool {
+	var sha256x bls.Fr
+	var Hx bls.G1Point
+	HxBytes := sha256.Sum256(x)
+	stringSha256x := hex.EncodeToString(HxBytes[:])
+	bls.SetFr16(&sha256x, stringSha256x)
+	bls.MulG1(&Hx, &bls.GenG1, &sha256x) //H(x)=g^sha256(x)
+	if !bls.EqualG1(&Hx, &pi.w) {
+		return false
+	}
+
 	if !vectorcommitment.VerifyMerkleTreeProof(VCdpk, pi.piDpki.Path, pi.piDpki.Indicator, bls.ToCompressedG2(&pi.dpki)) {
 		return false
 	}
@@ -166,7 +181,7 @@ func Combine(p *party.HonestParty, f uint32, x []byte, I []bls.Fr, Wi []bls.G1Po
 		return bls.GenG1, errors.New("not enough DPRF contributions")
 	}
 	for i := uint32(0); i < f+1; i++ {
-		if !VrfyContrib(Wi[i], pi[i], VCdpk) {
+		if !VrfyContrib(x, Wi[i], pi[i], VCdpk) {
 			return bls.GenG1, errors.New("invalid contribution")
 		}
 	}

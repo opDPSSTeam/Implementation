@@ -64,7 +64,7 @@ func MakeSecret(p *party.HonestParty, f uint32, n uint32, I []bls.Fr, y []bls.Fr
 
 	newPoly := polyring.LagrangeInterpolate(f, index, value)
 	// p.MutexKZG.Lock()
-	// Crec := p.KZG.CommitToPoly(newPoly)
+	// PCphi := p.KZG.CommitToPoly(newPoly)
 	// p.MutexKZG.Unlock()
 
 	// w := make([]bls.G1Point, n)

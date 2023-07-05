@@ -21,18 +21,21 @@ type Party interface {
 	getMessageWithType(messageType string) (*protobuf.Message, error)
 }
 
-type PiRec struct {
-	Cdk   bls.G1Point
-	Wdki  bls.G1Point
-	Crec  []bls.G1Point
-	Weval []bls.G1Point
+type ProofRec struct {
+	Dpki   bls.G2Point
+	PCdsk  bls.G1Point
+	VCdpk  []byte
+	Wdski  bls.G1Point
+	PiDpki vectorcommitment.PiVcomMerkle
+	PCphi  []bls.G1Point
+	Wphi   []bls.G1Point
 }
 
-// func printPiRec(pi *PiRec) {
-// 	fmt.Println("Cdk: ", pi.Cdk.String())
+// func printPiRec(pi *ProofRec) {
+// 	fmt.Println("PCdsk: ", pi.PCdsk.String())
 // 	fmt.Println("wdki: ", pi.wdki.String())
-// 	for i := 0; i < len(pi.Crec); i++ {
-// 		fmt.Println("Crec: ", pi.Crec[i].String())
+// 	for i := 0; i < len(pi.PCphi); i++ {
+// 		fmt.Println("PCphi: ", pi.PCphi[i].String())
 // 	}
 // 	for i := 0; i < len(pi.weval); i++ {
 // 		fmt.Println("weval: ", pi.weval[i].String())
@@ -59,26 +62,26 @@ func NewVShare(s bls.Fr, dskShare bls.Fr, recPolyEval []bls.Fr) *VShare {
 
 type PiShare struct {
 	Gs     bls.G1Point
-	Cvss   bls.G1Point
+	PCvss  bls.G1Point
 	Wvssi  bls.G1Point
-	Cz     bls.G1Point
+	PCz    bls.G1Point
 	Wz0    bls.G1Point
-	Cvcom  []byte
-	PiVcom vectorcommitment.PiVcomMerkle
-	PiRec  PiRec
+	VCvs   []byte
+	PiVs   vectorcommitment.PiVcomMerkle
+	PrfRec ProofRec
 }
 
-func NewPiShare(Gs bls.G1Point, Cvss bls.G1Point, wvssi bls.G1Point, Cz bls.G1Point, wz0 bls.G1Point, Cvcom []byte, piVcom vectorcommitment.PiVcomMerkle, piRec PiRec) *PiShare {
-	return &PiShare{Gs, Cvss, wvssi, Cz, wz0, Cvcom, piVcom, piRec}
+func NewPiShare(Gs bls.G1Point, PCvss bls.G1Point, wvssi bls.G1Point, PCz bls.G1Point, wz0 bls.G1Point, VCvs []byte, piVs vectorcommitment.PiVcomMerkle, piRec ProofRec) *PiShare {
+	return &PiShare{Gs, PCvss, wvssi, PCz, wz0, VCvs, piVs, piRec}
 }
 
 // func printPiShare(p *piShare) {
 // 	fmt.Println("Gs: ", p.Gs.String())
-// 	fmt.Println("Cvss: ", p.Cvss.String())
+// 	fmt.Println("PCvss: ", p.PCvss.String())
 // 	fmt.Println("wvssi: ", p.wvssi.String())
-// 	fmt.Println("Cz: ", p.Cz.String())
+// 	fmt.Println("PCz: ", p.PCz.String())
 // 	fmt.Println("wz0: ", p.wz0.String())
-// 	fmt.Println("Cvcom: ", string(p.Cvcom))
+// 	fmt.Println("VCvs: ", string(p.VCvs))
 // 	for i := 0; i < len(p.piVcom.Indicator); i++ {
 // 		fmt.Printf("Indicator[%d]: %d", i, p.piVcom.Indicator[i])
 // 	}
@@ -123,7 +126,7 @@ type HonestParty struct {
 	Share       bls.Fr        //share of this party
 	Gs          bls.G1Point   //commitment of the original share (invariant)
 	DSKi        []bls.Fr      //dprf secret key shares
-	DVKi        []bls.G1Point //dprf verification key shares
+	DPKi        []bls.G2Point //dprf verification key shares
 	ProofTuple  []MsgSigTuple //message-signature tuples from other nodes
 	ProofCtr    int           //counter of received message-signature tuples
 	shareTuples []VPiTuple    //v-pi tuples from other nodes
@@ -191,7 +194,7 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 		Share:       bls.ZERO,
 		Gs:          bls.GenG1,
 		DSKi:        make([]bls.Fr, N),
-		DVKi:        make([]bls.G1Point, N),
+		DPKi:        make([]bls.G2Point, N),
 		ProofTuple:  make([]MsgSigTuple, N),
 		ProofCtr:    0,
 		shareTuples: make([]VPiTuple, N),

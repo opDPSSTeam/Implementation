@@ -6,13 +6,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/opDPSSTeam/DPSS/pkg/utils"
+
 	kyberbls "github.com/drand/kyber-bls12381"
 	blsSig "github.com/drand/kyber/sign/bls"
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/dprf"
 	"github.com/opDPSSTeam/DPSS/internal/party"
 	"github.com/opDPSSTeam/DPSS/internal/polyring"
-	"github.com/opDPSSTeam/DPSS/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -64,7 +65,7 @@ func TestShare(t *testing.T) {
 	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
-		md, sigd := WpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
+		md, sigd := ShareSend(ctx, p[0], ID, current, F, N, secret)
 
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
@@ -119,7 +120,7 @@ func TestCallHelp(t *testing.T) {
 	ID := []byte("testCallHelp")
 	var Shelp []uint32 = []uint32{0}
 
-	CallHelp(p[1], ID, F, N, Shelp)
+	CallHelp(p[1], ID, Shelp)
 }
 
 func TestRecContrib(t *testing.T) {
@@ -155,7 +156,7 @@ func TestRecContrib(t *testing.T) {
 	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
-		md, sigd := WpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
+		md, sigd := ShareSend(ctx, p[0], ID, current, F, N, secret)
 
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
@@ -189,7 +190,7 @@ func TestRecContrib(t *testing.T) {
 		if i != dealerID && i != callerID {
 			helperID := i
 			cont := recContrib(p[helperID], ID, F, dealerID, callerID, *p[helperID].GetVShare(dealerID), *p[helperID].GetPiShare(dealerID))
-			vrf := vrfyRecCont(p[callerID], ID, F, cont)
+			vrf := vrfyRecCont(p[callerID], utils.Uint32ToBytes(callerID+1), cont)
 			assert.True(t, vrf, "Verify contribution failed")
 			log.Printf("Party %v has generated a valid RecCont for caller %v\n", i, callerID)
 		}
@@ -197,7 +198,7 @@ func TestRecContrib(t *testing.T) {
 
 	//verify the combination of recContrib
 	callerID = uint32(3)
-	log.Printf("original share: %v\n", p[callerID].GetVShare(dealerID).S.String())
+	originalShare := p[callerID].GetVShare(dealerID).S
 
 	contList := make([]RecCont, N)
 	for helperID := uint32(0); helperID < N; helperID++ {
@@ -213,7 +214,7 @@ func TestRecContrib(t *testing.T) {
 		bls.AsFr(&IdxList[i], uint64(i+1))
 		bls.CopyFr(&smList[i], &contList[i].sMasked)
 		bls.CopyG1(&DPRFContribList[i], &contList[i].DPRFContribF)
-		piDPRFList[i] = &contList[i].piHelp.piDPRF
+		piDPRFList[i] = &contList[i].proofHelp.proofDPRF
 	}
 
 	polyD := polyring.LagrangeInterpolate(F, IdxList, smList)
@@ -221,9 +222,11 @@ func TestRecContrib(t *testing.T) {
 	bls.AsFr(&posI, uint64(callerID+1))
 	bls.EvalPolyAt(&smi, polyD, &posI)
 
-	Fd, _ := dprf.Combine(p[callerID], F, utils.Uint32ToBytes(callerID+1), IdxList, DPRFContribList, piDPRFList)
-	bls.SubModFr(&sRec, &smi, &Fd)
+	FdG1, _ := dprf.Combine(p[callerID], F, utils.Uint32ToBytes(callerID+1), IdxList, DPRFContribList, piDPRFList, p[callerID].GetPiShare(dealerID).PrfRec.VCdpk)
+	Fd := utils.HashG1ToFr(&FdG1)
+	bls.SubModFr(&sRec, &smi, Fd)
 
+	log.Printf("original share: %v\n", originalShare.String())
 	log.Printf("recovered share: %v\n", sRec.String())
 	assert.True(t, bls.EqualFr(&sRec, &p[callerID].GetVShare(dealerID).S), "Recover share failed")
 }
@@ -261,7 +264,7 @@ func TestRecover(t *testing.T) {
 	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
-		md, sigd := WpAcssShareSend(ctx, p[0], ID, current, F, N, secret)
+		md, sigd := ShareSend(ctx, p[0], ID, current, F, N, secret)
 
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
@@ -292,23 +295,24 @@ func TestRecover(t *testing.T) {
 	var originalShare, recoveredShare bls.Fr
 	//this is the original share from dealer
 	originalShare = p[callerID].GetVShare(dealerID).S
-	log.Printf("original share: %v\n", originalShare.String())
 
-	CallHelp(p[callerID], ID, F, N, []uint32{dealerID})
+	CallHelp(p[callerID], ID, []uint32{dealerID})
 
 	for j := uint32(0); j < N; j++ {
-		go Help(p[j], ID, F, N)
+		go Help(p[j], ID, F)
 	}
+
 	wg.Add(1)
 	go func() {
 		res := WaitHelp(p[callerID], ID, F, N, []uint32{dealerID})
 		recoveredShare = res[dealerID]
-		log.Printf("recovered share: %v\n", recoveredShare.String())
 		wg.Done()
 		log.Printf("Party %v has recovered the secret for dealerID = %v\n", callerID, dealerID)
+		log.Printf("recovered share: %v\n", recoveredShare.String())
 	}()
 	wg.Wait()
 
+	log.Printf("original share: %v\n", originalShare.String())
 	assert.True(t, bls.EqualFr(&originalShare, &recoveredShare), "Recover share failed: inconsistent shares")
 
 }

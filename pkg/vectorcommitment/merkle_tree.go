@@ -69,7 +69,7 @@ func (t *MerkleTree) GetMerkleTreeProof(id int) ([][]byte, []int64) {
 	return path, indicator
 }
 
-//GetMerkleTreeProofPi returns a PiVcom as proof
+//GetMerkleTreeProofPi returns a PiVs as proof
 func (t *MerkleTree) GetMerkleTreeProofPi(id uint32) PiVcomMerkle {
 	path, indicator, _ := t.mktree.GetMerklePath(t.contents[id])
 	return PiVcomMerkle{Path: path, Indicator: indicator}
