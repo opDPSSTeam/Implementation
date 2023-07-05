@@ -12,12 +12,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type PiHelp struct {
-	Gs     bls.G1Point
-	Cdk    bls.G1Point
-	Cmask  bls.G1Point
-	wiMask bls.G1Point
-	piDPRF dprf.ProofDPRF
+type ProofHelp struct {
+	Gs        bls.G1Point
+	PCdsk     bls.G1Point
+	PCmask    bls.G1Point
+	wiMask    bls.G1Point
+	proofDPRF dprf.ProofDPRF
 }
 
 type RecCont struct {
@@ -25,10 +25,10 @@ type RecCont struct {
 	helperID     uint32
 	sMasked      bls.Fr
 	DPRFContribF bls.G1Point
-	piHelp       PiHelp
+	proofHelp    ProofHelp
 }
 
-func CallHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint32) {
+func CallHelp(p *party.HonestParty, ID []byte, Shelp []uint32) {
 	lenS := len(Shelp)
 	if lenS == 0 {
 		return // no need to call help
@@ -47,7 +47,7 @@ func CallHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 		Id:     ID,
 		Sender: p.PID,
 		Data:   msgData,
-	}, p.PID) // sendsc CallHelp to all parties except itself
+	}, p.PID) // send CallHelp to all parties except itself
 	if err != nil {
 		log.Printf("[DPSS Recover] [New Party %v] Error in broadcast: %v\n", p.PID, err)
 	} else {
@@ -55,7 +55,7 @@ func CallHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 	}
 }
 
-func Help(p *party.HonestParty, ID []byte, F uint32, N uint32) {
+func Help(p *party.HonestParty, ID []byte, F uint32) {
 	for {
 		m := <-p.GetMessage("WpAcssCallHelp", ID)
 		callerID := m.Sender
@@ -72,7 +72,7 @@ func Help(p *party.HonestParty, ID []byte, F uint32, N uint32) {
 		res := make([]RecCont, len(Shelp))
 		var msg = new(protobuf.WpAcssHelp)
 		msg.Res = make([]*protobuf.RecCont, len(Shelp))
-		var isEmpty bool = true
+		var isEmpty = true
 		for index, dealerID := range Shelp {
 			// only generate RecCont if received vpi tuples from dealerID
 			if p.IfReceivedVPiTuples(dealerID) {
@@ -86,12 +86,12 @@ func Help(p *party.HonestParty, ID []byte, F uint32, N uint32) {
 					DealerID:     dealerID,
 					SMasked:      []byte(res[index].sMasked.String()),
 					DPRFContribF: bls.ToCompressedG1(&res[index].DPRFContribF),
-					PiHelp: &protobuf.PiHelp{
-						Gs:     bls.ToCompressedG1(&res[index].piHelp.Gs),
-						Cdk:    bls.ToCompressedG1(&res[index].piHelp.Cdk),
-						Cmask:  bls.ToCompressedG1(&res[index].piHelp.Cmask),
-						WiMask: bls.ToCompressedG1(&res[index].piHelp.wiMask),
-						PiDPRF: dprf.EncapsulatePiDPRF(&res[index].piHelp.piDPRF),
+					PiHelp: &protobuf.ProofHelp{
+						Gs:        bls.ToCompressedG1(&res[index].proofHelp.Gs),
+						PCdsk:     bls.ToCompressedG1(&res[index].proofHelp.PCdsk),
+						PCmask:    bls.ToCompressedG1(&res[index].proofHelp.PCmask),
+						WiMask:    bls.ToCompressedG1(&res[index].proofHelp.wiMask),
+						ProofDPRF: dprf.EncapsulatePiDPRF(&res[index].proofHelp.proofDPRF),
 					},
 				}
 			}
@@ -115,16 +115,16 @@ func Help(p *party.HonestParty, ID []byte, F uint32, N uint32) {
 }
 
 func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint32) map[uint32]bls.Fr {
-	var CdkCounterMap = make(map[bls.G1Point]int)             //the number of times Cdk appears in the received help messages
-	var CdkDealerMap = make(map[bls.G1Point]uint32)           //maps Cdk to the dealerID
-	var CdkHelperMap = make(map[bls.G1Point][]uint32)         //records the helpers' indexes for the same Cdk
-	var CdkSmaskMap = make(map[bls.G1Point][]bls.Fr)          //records the sMasked for the same Cdk
-	var CdkDPRFMap = make(map[bls.G1Point][]bls.G1Point)      //records the DPRFContribF for the same Cdk
-	var CdkPiDPRFMap = make(map[bls.G1Point][]dprf.ProofDPRF) //records the ProofDPRF for the same Cdk
-	var HelperResMap = make(map[uint32][]RecCont)             //maps helperID to the received RecConts
-	var SrecMap = make(map[uint32]bls.Fr)                     //maps dealerID to the recovered s_{d,i}
+	var PCdskCounterMap = make(map[bls.G1Point]int)             //the number of times PCdsk appears in the received help messages
+	var PCdskDealerMap = make(map[bls.G1Point]uint32)           //maps PCdsk to the dealerID
+	var PCdskHelperMap = make(map[bls.G1Point][]uint32)         //records the helpers' indexes for the same PCdsk
+	var PCdskSmaskMap = make(map[bls.G1Point][]bls.Fr)          //records the sMasked for the same PCdsk
+	var PCdskDPRFMap = make(map[bls.G1Point][]bls.G1Point)      //records the DPRFContribF for the same PCdsk
+	var PCdskPiDPRFMap = make(map[bls.G1Point][]dprf.ProofDPRF) //records the ProofDPRF for the same PCdsk
+	var HelperResMap = make(map[uint32][]RecCont)               //maps helperID to the received RecConts
+	var SrecMap = make(map[uint32]bls.Fr)                       //maps dealerID to the recovered s_{d,i}
 
-	var recoveredCtr int = 0
+	var recoveredCtr = 0
 
 	for {
 		m := <-p.GetMessage("WpAcssHelp", ID)
@@ -135,9 +135,9 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 		HelperResMap[m.Sender] = res
 
 		lenRes := len(res)
-		var FLGContinue bool = false
+		var FLGContinue = false
 		for i := 0; i < lenRes; i++ {
-			if !vrfyRecCont(p, ID, F, res[i]) {
+			if !vrfyRecCont(p, utils.Uint32ToBytes(p.PID+1), res[i]) {
 				log.Printf("[DPSS Recover] [New Party %v] verify the RecCont (dealerID: %v) from [New Party %v] fail\n", p.PID, res[i].dealerID, m.Sender)
 				FLGContinue = true
 				continue
@@ -150,22 +150,22 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 		}
 
 		for i := 0; i < lenRes; i++ {
-			tmpCdk := res[i].piHelp.Cdk
-			_, ok1 := CdkCounterMap[tmpCdk]
-			// ok1 denotes the map of Cdk exists
+			tmpPCdsk := res[i].proofHelp.PCdsk
+			_, ok1 := PCdskCounterMap[tmpPCdsk]
+			// ok1 denotes the map of PCdsk exists
 			if ok1 {
-				CdkCounterMap[tmpCdk]++
-				CdkHelperMap[tmpCdk] = append(CdkHelperMap[tmpCdk], m.Sender)
-				CdkSmaskMap[tmpCdk] = append(CdkSmaskMap[tmpCdk], res[i].sMasked)
-				CdkDPRFMap[tmpCdk] = append(CdkDPRFMap[tmpCdk], res[i].DPRFContribF)
-				CdkPiDPRFMap[tmpCdk] = append(CdkPiDPRFMap[tmpCdk], res[i].piHelp.piDPRF)
+				PCdskCounterMap[tmpPCdsk]++
+				PCdskHelperMap[tmpPCdsk] = append(PCdskHelperMap[tmpPCdsk], m.Sender)
+				PCdskSmaskMap[tmpPCdsk] = append(PCdskSmaskMap[tmpPCdsk], res[i].sMasked)
+				PCdskDPRFMap[tmpPCdsk] = append(PCdskDPRFMap[tmpPCdsk], res[i].DPRFContribF)
+				PCdskPiDPRFMap[tmpPCdsk] = append(PCdskPiDPRFMap[tmpPCdsk], res[i].proofHelp.proofDPRF)
 			} else {
-				CdkCounterMap[tmpCdk] = 1
-				CdkHelperMap[tmpCdk] = []uint32{m.Sender}
-				CdkSmaskMap[tmpCdk] = []bls.Fr{res[i].sMasked}
-				CdkDealerMap[tmpCdk] = res[i].dealerID
-				CdkDPRFMap[tmpCdk] = []bls.G1Point{res[i].DPRFContribF}
-				CdkPiDPRFMap[tmpCdk] = []dprf.ProofDPRF{res[i].piHelp.piDPRF}
+				PCdskCounterMap[tmpPCdsk] = 1
+				PCdskHelperMap[tmpPCdsk] = []uint32{m.Sender}
+				PCdskSmaskMap[tmpPCdsk] = []bls.Fr{res[i].sMasked}
+				PCdskDealerMap[tmpPCdsk] = res[i].dealerID
+				PCdskDPRFMap[tmpPCdsk] = []bls.G1Point{res[i].DPRFContribF}
+				PCdskPiDPRFMap[tmpPCdsk] = []dprf.ProofDPRF{res[i].proofHelp.proofDPRF}
 			}
 		}
 
@@ -173,16 +173,16 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 		var yList = make([]bls.Fr, F+1)
 		var ContribList = make([]bls.G1Point, F+1)
 		var piDPRFList = make([]*dprf.ProofDPRF, F+1)
-		// check if there exists a Cdk that appears more than F+1 times
+		// check if there exists a PCdsk that appears more than F+1 times
 		for i := 0; i < lenRes; i++ {
-			tmpCdk := res[i].piHelp.Cdk
-			if CdkCounterMap[tmpCdk] >= int(F+1) {
-				dealerID := CdkDealerMap[tmpCdk]
+			tmpCdk := res[i].proofHelp.PCdsk
+			if PCdskCounterMap[tmpCdk] >= int(F+1) {
+				dealerID := PCdskDealerMap[tmpCdk]
 				for j := uint32(0); j < F+1; j++ {
-					bls.AsFr(&IdxList[j], uint64(CdkHelperMap[tmpCdk][j]+1))
-					bls.CopyFr(&yList[j], &CdkSmaskMap[tmpCdk][j])
-					bls.CopyG1(&ContribList[j], &CdkDPRFMap[tmpCdk][j])
-					piDPRFList[j] = &CdkPiDPRFMap[tmpCdk][j]
+					bls.AsFr(&IdxList[j], uint64(PCdskHelperMap[tmpCdk][j]+1))
+					bls.CopyFr(&yList[j], &PCdskSmaskMap[tmpCdk][j])
+					bls.CopyG1(&ContribList[j], &PCdskDPRFMap[tmpCdk][j])
+					piDPRFList[j] = &PCdskPiDPRFMap[tmpCdk][j]
 				}
 				// recover sMasked at index I
 				polyD := polyring.LagrangeInterpolate(F, IdxList, yList)
@@ -190,9 +190,10 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 				var posI bls.Fr
 				bls.AsFr(&posI, uint64(p.PID+1))
 				bls.EvalPolyAt(&sMaskedDI, polyD, &posI)
-				Fdi, _ := dprf.Combine(p, F, utils.Uint32ToBytes(p.PID+1), IdxList, ContribList, piDPRFList)
+				FdiG1, _ := dprf.Combine(p, F, utils.Uint32ToBytes(p.PID+1), IdxList, ContribList, piDPRFList, p.GetPiShare(dealerID).PrfRec.VCdpk)
+				Fdi := utils.HashG1ToFr(&FdiG1)
 				var sdi bls.Fr
-				bls.SubModFr(&sdi, &sMaskedDI, &Fdi)
+				bls.SubModFr(&sdi, &sMaskedDI, Fdi)
 				SrecMap[dealerID] = sdi
 				log.Printf("[DPSS Recover] [New Party %v] recovered share from dealer %v\n", p.PID, dealerID)
 				recoveredCtr++
@@ -232,18 +233,18 @@ func decapsulateRes(m *protobuf.Message, pid uint32) ([]RecCont, error) {
 		DPRFContribFRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].DPRFContribF)
 		bls.CopyG1(&res[i].DPRFContribF, DPRFContribFRaw)
 
-		piHelp := new(PiHelp)
+		piHelp := new(ProofHelp)
 		piHelpGsRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.Gs)
 		bls.CopyG1(&piHelp.Gs, piHelpGsRaw)
-		piHelpCdkRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.Cdk)
-		bls.CopyG1(&piHelp.Cdk, piHelpCdkRaw)
-		piHelpCmaskRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.Cmask)
-		bls.CopyG1(&piHelp.Cmask, piHelpCmaskRaw)
+		piHelpCdkRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.PCdsk)
+		bls.CopyG1(&piHelp.PCdsk, piHelpCdkRaw)
+		piHelpCmaskRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.PCmask)
+		bls.CopyG1(&piHelp.PCmask, piHelpCmaskRaw)
 		piHelpWiMaskRaw, _ := bls.FromCompressedG1(helpMsg.Res[i].PiHelp.WiMask)
 		bls.CopyG1(&piHelp.wiMask, piHelpWiMaskRaw)
 
-		piHelp.piDPRF = *dprf.DecapsulatePiDPRF(helpMsg.Res[i].PiHelp.PiDPRF)
-		res[i].piHelp = *piHelp
+		piHelp.proofDPRF = *dprf.DecapsulatePiDPRF(helpMsg.Res[i].PiHelp.ProofDPRF)
+		res[i].proofHelp = *piHelp
 	}
 	return res, nil
 }
@@ -254,27 +255,27 @@ func recContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, call
 	index := callerID / F
 	// log.Printf("index: %v\n", index)
 	bls.AddModFr(&sMasked, &v.S, &v.RecPolyEval[index])
-	bls.AddG1(&wiMask, &pi.Wvssi, &pi.PiRec.Weval[index])
-	bls.AddG1(&Cmask, &pi.Cvss, &pi.PiRec.Crec[index])
-	DPRFContribF, piDPRF := dprf.Contrib(utils.Uint32ToBytes(callerID+1), p.DSKi[dealerID], p.DVKi[dealerID])
-	piHelp := PiHelp{
-		Gs:     pi.Gs,
-		Cdk:    pi.PiRec.Cdk,
-		Cmask:  Cmask,
-		wiMask: wiMask,
-		piDPRF: *piDPRF,
+	bls.AddG1(&wiMask, &pi.Wvssi, &pi.PrfRec.Wphi[index])
+	bls.AddG1(&Cmask, &pi.PCvss, &pi.PrfRec.PCphi[index])
+	DPRFContribF, piDPRF := dprf.Contrib(utils.Uint32ToBytes(callerID+1), p.DSKi[dealerID], p.DPKi[dealerID], p.GetPiShare(dealerID).PrfRec.PiDpki)
+	piHelp := ProofHelp{
+		Gs:        pi.Gs,
+		PCdsk:     pi.PrfRec.PCdsk,
+		PCmask:    Cmask,
+		wiMask:    wiMask,
+		proofDPRF: *piDPRF,
 	}
 	recCont := RecCont{
 		dealerID:     dealerID,
 		helperID:     p.PID,
 		sMasked:      sMasked,
 		DPRFContribF: DPRFContribF,
-		piHelp:       piHelp,
+		proofHelp:    piHelp,
 	}
 	return recCont
 }
 
-func vrfyRecCont(p *party.HonestParty, ID []byte, F uint32, recCont RecCont) bool {
+func vrfyRecCont(p *party.HonestParty, x []byte, recCont RecCont) bool {
 	if bls.EqualZero(&recCont.sMasked) {
 		log.Printf("[DPSS Recover] [New Party %v] verify recContrib fail: sMasked is zero\n", p.PID)
 		return false
@@ -288,14 +289,14 @@ func vrfyRecCont(p *party.HonestParty, ID []byte, F uint32, recCont RecCont) boo
 	bls.AsFr(&FrI, uint64(recCont.helperID+1))
 
 	p.MutexKZG.Lock()
-	if !p.KZG.CheckProofSingle(&recCont.piHelp.Cmask, &recCont.piHelp.wiMask, &FrI, &recCont.sMasked) {
+	if !p.KZG.CheckProofSingle(&recCont.proofHelp.PCmask, &recCont.proofHelp.wiMask, &FrI, &recCont.sMasked) {
 		log.Printf("[DPSS Recover] [New Party %v] verify recContrib fail: sMasked is not valid\n", p.PID)
 		p.MutexKZG.Unlock()
 		return false
 	}
 	p.MutexKZG.Unlock()
 
-	if !dprf.VrfyContrib(recCont.DPRFContribF, &recCont.piHelp.piDPRF) {
+	if !dprf.VrfyContrib(x, recCont.DPRFContribF, &recCont.proofHelp.proofDPRF, p.GetPiShare(recCont.dealerID).PrfRec.VCdpk) {
 		log.Printf("[DPSS Recover] [New Party %v] verify recContrib fail: DPRFContribF is not valid\n", p.PID)
 		return false
 	}

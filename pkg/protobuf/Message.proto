@@ -49,16 +49,18 @@ message Vote{
 
 //apdb
 message Store{
-  string vc = 1;
+  bytes vc = 1;
   bytes shard =2;
-  string proof = 3;
+  repeated bytes proof1 = 3;
+  repeated int64 proof2 = 4;
 }
 message Stored{
   bytes sigshare = 1 ;
 }
 message Recast{
   bytes shard = 1;
-  string proof = 2;
+  repeated bytes proof1 = 2;
+  repeated int64 proof2 = 3;
 }
 
 //vdd
@@ -103,27 +105,35 @@ message BLockSetValidation{
 
 //wpACSS
 message vInShare{
-  bytes s=1;
-  bytes dskShare=2;
-  repeated bytes recPolyEval = 3;
+  string s=1;
+  string dskShare=2;
+  repeated string recPolyEval = 3;
 }
 
-message PiRec{
-  bytes Cdk=1;
-  bytes wdki=2;
-  repeated bytes Crec=3;
-  repeated bytes weval=4;
+message PiVcomMerkle{
+  repeated bytes path = 1;
+  repeated int64 indicator = 2;
+}
+
+message ProofRec{
+  bytes dpki=1;
+  bytes PCdsk=2;
+  bytes VCdpk=3;
+  bytes wdski=4;
+  PiVcomMerkle piDpki=5;
+  repeated bytes PCphi=6;
+  repeated bytes wphi=7;
 }
 
 message piInShare{
   bytes Gs=1;
-  bytes Cvss=2;
+  bytes PCvss=2;
   bytes wvssi=3;
-  bytes Cz=4;
+  bytes PCz=4;
   bytes wz0 = 5;
-  string Cvcom=6;
-  string piVcom=7;
-  PiRec piRec=8;
+  bytes VCvs=6;
+  PiVcomMerkle piVs=7;
+  ProofRec proofRec=8;
 }
 
 message wpAcssShare{
@@ -140,26 +150,27 @@ message wpAcssCallHelp{
   repeated uint32 indices = 2;
 }
 
-message piDPRF{
+message proofDPRF{
   bytes w=1;
   bytes c=2;
   bytes u=3;
-  bytes dvk=4;
+  bytes dpk=4;
+  PiVcomMerkle piDpk=5;
 }
 
-message piHelp{
+message proofHelp{
   bytes Gs=1;
-  bytes Cdk =2;
-  bytes Cmask =3;
+  bytes PCdsk =2;
+  bytes PCmask =3;
   bytes wiMask =4;
-  piDPRF piDPRF = 5;
+  proofDPRF proofDPRF = 5;
 }
 
 message RecCont{
   uint32 dealerID = 1;
   bytes sMasked = 2;
   bytes DPRFContribF = 3;
-  piHelp piHelp = 4;
+  proofHelp piHelp = 4;
 }
 
 message wpAcssHelp{
@@ -168,9 +179,9 @@ message wpAcssHelp{
 
 //Dpss
 message DpssCom{
-  string Cold = 1;
+  bytes Cold = 1;
   bytes Gsi = 2;
-  string piOld = 3;
+  PiVcomMerkle piOld = 3;
 }
 
 message DpssProof{
@@ -199,8 +210,8 @@ message Err{
 message AuxCont{
   uint32 k = 1;
   bytes Gs = 2;
-  string Cvcom = 3;
-  string piVcom = 4;
+  bytes Cvcom = 3;
+  PiVcomMerkle piVcom = 4;
 }
 
 message Aux{
@@ -208,18 +219,8 @@ message Aux{
 }
 
 //init sharing
-message InitOld{
+message Init{
   bytes share = 1;
   repeated bytes vcom = 2;
   bytes Gs = 3;
-  VC vc = 4;
-}
-
-message InitNew{
-  VC vc =1;
-}
-
-message VC{
-  uint32 index = 1;
-  string srs = 2;
 }

@@ -73,24 +73,16 @@ func DeleteZeroWithLen(src []byte, len int) []byte {
 	return src[0:len]
 }
 
-// SliceToArray convert byte slice to a 32 byte array
+// SliceToArray will convert byte slice to a 32 byte array
 func SliceToArray(bytes []byte) [32]byte {
 	var byteArray [32]byte
 	copy(byteArray[:], bytes)
 	return byteArray
 }
 
-// HashG1toFr map bls.G1Point to kbls.Fr using sha256
-func HashG1toFr(g *bls.G1Point) *kbls.Fr {
-	str := sha256.Sum256([]byte(g.String()))
+func HashG1ToFr(a *bls.G1Point) *bls.Fr {
+	str := sha256.Sum256([]byte(a.String()))
 	var bv big.Int
 	bv.SetString(hex.EncodeToString(str[:]), 16)
-	return kbls.NewFr().RedFromBytes(bv.Bytes())
-}
-
-func HashByteToFr(b []byte) *kbls.Fr {
-	str := sha256.Sum256(b)
-	var bv big.Int
-	bv.SetString(hex.EncodeToString(str[:]), 16)
-	return kbls.NewFr().RedFromBytes(bv.Bytes())
+	return (*bls.Fr)(kbls.NewFr().RedFromBytes(bv.Bytes()))
 }

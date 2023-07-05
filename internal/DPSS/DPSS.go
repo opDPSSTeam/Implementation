@@ -9,29 +9,29 @@ import (
 
 	kyberbls "github.com/drand/kyber-bls12381"
 	blsSig "github.com/drand/kyber/sign/bls"
-	kbls "github.com/kilic/bls12-381"
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/mvba"
 	"github.com/opDPSSTeam/DPSS/internal/party"
 	"github.com/opDPSSTeam/DPSS/internal/polyring"
 	"github.com/opDPSSTeam/DPSS/internal/wpACSS"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
-	"github.com/opDPSSTeam/DPSS/pkg/utils"
+	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
 	"google.golang.org/protobuf/proto"
 )
 
 //DpssOld is the old party's procedures in DPSS
 func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N uint32) {
+
 	p.DpssOldStart = time.Now()
 
-	vgConverted := make([]kbls.Fr, N)
+	vgBytes := make([][]byte, N)
 	for i := uint32(0); i < N; i++ {
-		vgConverted[i] = *utils.HashG1toFr(&p.VCom[i])
+		vgBytes[i] = bls.ToCompressedG1(&p.VCom[i])
 	}
+	tre, _ := vectorcommitment.NewMerkleTree(vgBytes)
+	Cold := tre.GetMerkleTreeRoot()
 
-	Cold := p.VC.Commit(vgConverted)
-
-	piOld := p.VC.Open(vgConverted, int(p.PID))
+	piOld := tre.GetMerkleTreeProofPi(p.PID)
 	data := encapsulateComMsg(Cold, &p.VCom[p.PID], piOld)
 	err := p.BroadcastToNextCommittee(&protobuf.Message{
 		Type:   "DpssCom",
@@ -44,7 +44,7 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	}
 	log.Printf("[DPSS Commit] [Old Party %v] multicast DpssCom done\n", p.PID)
 
-	md, sig := wpACSS.WpAcssShareSend(ctx, p, ID, false, F, N, p.Share)
+	md, sig := wpACSS.ShareSend(ctx, p, ID, false, F, N, p.Share)
 
 	//the following block is for testing
 	/* 	blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
@@ -66,6 +66,7 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 		log.Printf("[DPSS Reshare] [Old Party %v] send DpssProof error: %v\n", p.PID, err)
 	}
 	log.Printf("[DPSS Reshare] [Old Party %v] multicast DpssProof done\n", p.PID)
+
 	p.DpssOldEnd = time.Now()
 }
 
@@ -73,6 +74,7 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N uint32) bls.Fr {
 
 	p.DpssNewStart = time.Now()
+
 	//start wpACSS instances to receive shares from old parties
 	go func() {
 		for {
@@ -103,7 +105,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 					} //else {
 					// 	log.Printf("[DPSS Commit] [New Party %v] receive DpssCom from [Old Party %v]\n", p.PID, m.Sender)
 					// }
-					if !verifyComMsg(p, &DpssComMsg, m.Sender) {
+					if !verifyComMsg(&DpssComMsg) {
 						log.Printf("[DPSS Commit] [New Party %v] verify DpssCom from [Old Party %v] error: invalid commitment or value\n", p.PID, m.Sender)
 						continue //wait for the next commitment
 					}
@@ -222,14 +224,14 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 
 	go func() {
 		if len(Shelp) > 0 {
-			wpACSS.CallHelp(p, ID, F, N, Shelp)
+			wpACSS.CallHelp(p, ID, Shelp)
 			recoverResChan <- wpACSS.WaitHelp(p, ID, F, N, Shelp) //wait for others' help
 		} else {
 			log.Printf("[DPSS Recover] [New Party %v] no help needed\n", p.PID)
 		}
 	}()
 
-	go wpACSS.Help(p, ID, F, N) //answer others' help
+	go wpACSS.Help(p, ID, F) //answer others' help
 
 	if len(Shelp) > 0 {
 		SrecMap = <-recoverResChan //wait for the recovery result
@@ -253,7 +255,6 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	GenNewCom(ctx, p, ID, F, N, newShare, Shelp, I)
 	p.DpssNewEnd = time.Now()
 	return newShare
-
 }
 
 func Pmvba(p *party.HonestParty, ID []byte, value []byte, validation []byte) error {
@@ -280,11 +281,15 @@ func Pmvba(p *party.HonestParty, ID []byte, value []byte, validation []byte) err
 	return nil
 }
 
-func encapsulateComMsg(Cold string, Gsi *bls.G1Point, piOld string) []byte {
+func encapsulateComMsg(Cold []byte, Gsi *bls.G1Point, piOld vectorcommitment.PiVcomMerkle) []byte {
 	var msg = new(protobuf.DpssCom)
 	msg.Cold = Cold
 	msg.Gsi = bls.ToCompressedG1(Gsi)
-	msg.PiOld = piOld
+	msg.PiOld = new(protobuf.PiVcomMerkle)
+	for i := 0; i < len(piOld.Indicator); i++ {
+		msg.PiOld.Indicator = append(msg.PiOld.Indicator, piOld.Indicator[i])
+		msg.PiOld.Path = append(msg.PiOld.Path, piOld.Path[i])
+	}
 	data, _ := proto.Marshal(msg)
 	return data
 }
@@ -297,10 +302,13 @@ func encapsulateProofMsg(md []byte, sig []byte) []byte {
 	return data
 }
 
-func verifyComMsg(p *party.HonestParty, msg *protobuf.DpssCom, senderID uint32) bool {
-	Gsi, _ := bls.FromCompressedG1(msg.Gsi)
-	v := utils.HashG1toFr(Gsi)
-	return p.VC.Verify(msg.Cold, *v, int(senderID), msg.PiOld)
+func verifyComMsg(msg *protobuf.DpssCom) bool {
+	var piOld = new(vectorcommitment.PiVcomMerkle)
+	for i := 0; i < len(msg.PiOld.Indicator); i++ {
+		piOld.Indicator = append(piOld.Indicator, msg.PiOld.Indicator[i])
+		piOld.Path = append(piOld.Path, msg.PiOld.Path[i])
+	}
+	return vectorcommitment.VerifyMerkleTreeProof(msg.Cold, piOld.Path, piOld.Indicator, msg.Gsi)
 }
 
 func parseGsi(m []byte) *bls.G1Point {
@@ -404,7 +412,7 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 				continue
 			}
 
-			isValid, kList, kGsList := verifyAux(p, Auxmsg, m.Sender)
+			isValid, kList, kGsList := verifyAux(Auxmsg)
 			if !isValid {
 				log.Printf("[DPSS GenNewCom] [New Party %v] receive invalid Aux message from [New Party %v]\n", p.PID, m.Sender)
 				continue
@@ -492,8 +500,10 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 				AuxMsg.Cont[index].K = k
 				bls.MulG1(&tmpGs, &bls.GenG1, &p.GetVShare(k).S)
 				AuxMsg.Cont[index].Gs = bls.ToCompressedG1(&tmpGs)
-				AuxMsg.Cont[index].Cvcom = p.GetPiShare(k).Cvcom
-				AuxMsg.Cont[index].PiVcom = p.GetPiShare(k).PiVcom
+				AuxMsg.Cont[index].Cvcom = p.GetPiShare(k).VCvs
+				AuxMsg.Cont[index].PiVcom = new(protobuf.PiVcomMerkle)
+				AuxMsg.Cont[index].PiVcom.Path = p.GetPiShare(k).PiVs.Path
+				AuxMsg.Cont[index].PiVcom.Indicator = p.GetPiShare(k).PiVs.Indicator
 			}
 		}
 
@@ -521,13 +531,11 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 
 }
 
-func verifyAux(p *party.HonestParty, AuxMsg *protobuf.Aux, senderID uint32) (bool, []uint32, []bls.G1Point) {
+func verifyAux(AuxMsg *protobuf.Aux) (bool, []uint32, []bls.G1Point) {
 	kList := make([]uint32, 0)
 	GsList := make([]bls.G1Point, 0)
 	for i := 0; i < len(AuxMsg.Cont); i++ {
-		Gsi, _ := bls.FromCompressedG1(AuxMsg.Cont[i].Gs)
-		m := utils.HashG1toFr(Gsi)
-		if p.VC.Verify(AuxMsg.Cont[i].Cvcom, *m, int(senderID), AuxMsg.Cont[i].PiVcom) {
+		if vectorcommitment.VerifyMerkleTreeProof(AuxMsg.Cont[i].Cvcom, AuxMsg.Cont[i].PiVcom.Path, AuxMsg.Cont[i].PiVcom.Indicator, AuxMsg.Cont[i].Gs) {
 			kList = append(kList, AuxMsg.Cont[i].K)
 			tmpGs, _ := bls.FromCompressedG1(AuxMsg.Cont[i].Gs)
 			GsList = append(GsList, *tmpGs)
