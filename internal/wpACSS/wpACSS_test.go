@@ -79,7 +79,7 @@ func TestShare(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := ShareReceive(p[i], false, ID)
+			vShare, _, err := ShareReceive(p[i], false, ID, 0)
 			if err != nil {
 				log.Printf("error: %v\n", err)
 				wg.Done()
@@ -170,7 +170,7 @@ func TestRecContrib(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := ShareReceive(p[i], false, ID)
+			vShare, _, err := ShareReceive(p[i], false, ID, 0)
 			if err != nil {
 				log.Printf("error: %v\n", err)
 				wg.Done()
@@ -278,7 +278,7 @@ func TestRecover(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := ShareReceive(p[i], false, ID)
+			vShare, _, err := ShareReceive(p[i], false, ID, 0)
 			if err != nil {
 				log.Printf("error: %v\n", err)
 				wg.Done()

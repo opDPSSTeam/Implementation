@@ -76,11 +76,16 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	p.DpssNewStart = time.Now()
 
 	//start wpACSS instances to receive shares from old parties
-	go func() {
-		for {
-			wpACSS.ShareReceive(p, true, ID)
-		}
-	}()
+	// go func() {
+	// 	for {
+	// 		wpACSS.ShareReceive(p, true, ID)
+	// 	}
+	// }()
+	for i := uint32(0); i < N; i++ {
+		go func(i uint32) {
+			wpACSS.ShareReceive(p, true, ID, i)
+		}(i)
+	}
 
 	vcom := make([]bls.G1Point, N)
 	vg := make([]bls.G1Point, F+1)
