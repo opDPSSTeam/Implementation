@@ -78,7 +78,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	//start wpACSS instances to receive shares from old parties
 	go func() {
 		for {
-			wpACSS.WpAcssShareEcho(p, true, ID)
+			wpACSS.ShareReceive(p, true, ID)
 		}
 	}()
 
@@ -153,8 +153,9 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 						log.Printf("[DPSS Reshare] [New Party %v] receive DpssProof error: %v\n", p.PID, err)
 					}
 
+					mFinish := append([]byte("finish"), DpssProofMsg.M...)
 					blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
-					err = blsScheme.Verify(p.SigPK.Commit(), DpssProofMsg.M, DpssProofMsg.Sig)
+					err = blsScheme.Verify(p.SigPK.Commit(), mFinish, DpssProofMsg.Sig)
 					if err != nil {
 						log.Printf("[DPSS Reshare] [New Party %v] verify DpssProof from [Old Party %v] error: invalid signature\n", p.PID, m.Sender)
 						continue //wait for the next proof
@@ -267,7 +268,8 @@ func Pmvba(p *party.HonestParty, ID []byte, value []byte, validation []byte) err
 
 	blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
 	for i := 0; i < len(MvbaMsg.Tuple); i++ {
-		err := blsScheme.Verify(p.SigPK.Commit(), MvbaMsg.Tuple[i].Md, MvbaMsg.Tuple[i].Sig)
+		mF := append([]byte("finish"), MvbaMsg.Tuple[i].Md...)
+		err := blsScheme.Verify(p.SigPK.Commit(), mF, MvbaMsg.Tuple[i].Sig)
 		if err != nil {
 			log.Printf("[DPSS MVBA] [New Party %v] invalid signature: %v\n", p.PID, err)
 			return fmt.Errorf("[DPSS MVBA] [New Party %v] invalid signature: %v", p.PID, err)

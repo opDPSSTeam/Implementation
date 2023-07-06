@@ -65,10 +65,10 @@ func TestShare(t *testing.T) {
 	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
-		md, sigd := ShareSend(ctx, p[0], ID, current, F, N, secret)
-
+		md, sigF := ShareSend(ctx, p[0], ID, current, F, N, secret)
+		mdF := append([]byte("finish"), md...)
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
-		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
+		err := blsScheme.Verify(p[0].SigPK.Commit(), mdF, sigF)
 		if err != nil {
 			log.Printf("error: %v\n", err)
 		} else {
@@ -79,7 +79,7 @@ func TestShare(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := WpAcssShareEcho(p[i], false, ID)
+			vShare, _, err := ShareReceive(p[i], false, ID)
 			if err != nil {
 				log.Printf("error: %v\n", err)
 				wg.Done()
@@ -170,7 +170,7 @@ func TestRecContrib(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := WpAcssShareEcho(p[i], false, ID)
+			vShare, _, err := ShareReceive(p[i], false, ID)
 			if err != nil {
 				log.Printf("error: %v\n", err)
 				wg.Done()
@@ -278,7 +278,7 @@ func TestRecover(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := WpAcssShareEcho(p[i], false, ID)
+			vShare, _, err := ShareReceive(p[i], false, ID)
 			if err != nil {
 				log.Printf("error: %v\n", err)
 				wg.Done()
