@@ -127,7 +127,7 @@ func (p *HonestParty) BroadcastToNextCommittee(m *protobuf.Message) error {
 func (p *HonestParty) GetMessage(messageType string, ID []byte) chan *protobuf.Message {
 	value1, _ := p.dispatchChannels.LoadOrStore(messageType, new(sync.Map))
 
-	value2, _ := value1.(*sync.Map).LoadOrStore(string(ID), make(chan *protobuf.Message, p.N*p.N)) // ch change the size to N^2
+	value2, _ := value1.(*sync.Map).LoadOrStore(string(ID), make(chan *protobuf.Message, p.N*p.N))
 
 	return value2.(chan *protobuf.Message)
 }

@@ -8,6 +8,7 @@ import (
 
 	kyberbls "github.com/drand/kyber-bls12381"
 	blsSig "github.com/drand/kyber/sign/bls"
+	"github.com/drand/kyber/sign/tbls"
 
 	"google.golang.org/protobuf/proto"
 
@@ -23,6 +24,8 @@ import (
 // ShareSend shares the secret to the other parties, and returns a message md and a signature on md
 // Assuming KZG setup has done, and public parameters are available
 func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current bool, F uint32, N uint32, secret bls.Fr) ([]byte, []byte) {
+	tblsScheme := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite())
+	extendID := append(ID, utils.Uint32ToBytes(p.PID)...)
 
 	//shares[0]=s, the other n elements are secret shares
 	PCvss, shares, witnesses, polyF := vss.VssShare(p, F, N, secret)
@@ -81,7 +84,7 @@ func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current boo
 		}
 		sendShareMsg := protobuf.Message{
 			Type:   "wpAcssShare",
-			Id:     ID,
+			Id:     extendID,
 			Sender: p.PID,
 			Data:   data,
 		}
@@ -127,24 +130,24 @@ func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current boo
 		select {
 		case <-ctx.Done():
 			return nil, nil
-		case m := <-p.GetMessage("wpAcssEcho", ID):
-			var payload protobuf.WpAcssEcho
-			err := proto.Unmarshal(m.Data, &payload)
+		case m := <-p.GetMessage("wpAcssEcho", extendID):
+			var echoMsg protobuf.WpAcssEcho
+			err := proto.Unmarshal(m.Data, &echoMsg)
 			if err != nil {
 				log.Printf("[DPSS wpACSS] [New Party %v] unmarshal wpAcssEcho error: %v\n", p.PID, err)
 			} //else {
 			// 	log.Printf("[DPSS wpACSS] [New Party %v] receive wpAcssEcho from [Party %v]\n", p.PID, m.Sender)
 			// }
 
-			sigs1 = append(sigs1, payload.Sigshare)
-			var sigR []byte
+			sigs1 = append(sigs1, echoMsg.Sigshare)
 			if uint32(len(sigs1)) > 2*p.F && !multicastDone {
+				var sigR []byte
 				//the verification of sigshare is done at the beginning of Recover()
 				//use different SigPK for verification
 				if current {
-					sigR, _ = p.TblsScheme.Recover(p.SigPK, mReady, sigs1, int(2*p.F+1), int(p.N))
+					sigR, _ = tblsScheme.Recover(p.SigPK, mReady, sigs1, int(2*p.F+1), int(p.N))
 				} else {
-					sigR, _ = p.TblsScheme.Recover(p.SigPKNew, mReady, sigs1, int(2*p.F+1), int(p.N))
+					sigR, _ = tblsScheme.Recover(p.SigPKNew, mReady, sigs1, int(2*p.F+1), int(p.N))
 				}
 				msgReady := new(protobuf.WpAcssReady)
 				msgReady.Md = md
@@ -152,7 +155,7 @@ func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current boo
 				data, _ := proto.Marshal(msgReady)
 				multicastMsgReady := &protobuf.Message{
 					Type:   "wpAcssReady",
-					Id:     ID,
+					Id:     extendID,
 					Sender: p.PID,
 					Data:   data,
 				}
@@ -164,26 +167,35 @@ func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current boo
 				log.Printf("[DPSS wpACSS] [New Party %v] multicast wpAcssReady done\n", p.PID)
 				multicastDone = true
 			}
-		case m := <-p.GetMessage("wpAcssFinish", ID):
-			var payload protobuf.WpAcssFinish
-			err := proto.Unmarshal(m.Data, &payload)
+
+		case m := <-p.GetMessage("wpAcssFinish", extendID):
+			var finishMsg protobuf.WpAcssFinish
+			err := proto.Unmarshal(m.Data, &finishMsg)
 			if err != nil {
 				log.Printf("[DPSS wpACSS] [New Party %v] unmarshal WpAcssFinish error: %v\n", p.PID, err)
 			} //else {
 			// 	log.Printf("[DPSS wpACSS] [New Party %v] receive WpAcssFinish from [Party %v]\n", p.PID, m.Sender)
 			// }
 
-			sigs2 = append(sigs2, payload.Sigshare)
+			sigs2 = append(sigs2, finishMsg.Sigshare)
 			// var sigF []byte
 			if uint32(len(sigs2)) > 2*p.F {
 				if current {
-					sigF, _ := p.TblsScheme.Recover(p.SigPK, mFinish, sigs2, int(2*p.F+1), int(p.N))
-					log.Printf("[DPSS wpACSS] [New Party %v] wpACSS.Share done\n", p.PID)
-					return md, sigF
+					sigF, err := tblsScheme.Recover(p.SigPK, mFinish, sigs2, int(2*p.F+1), int(p.N))
+					if err != nil {
+						log.Printf("[DPSS wpACSS] [New Party %v] wpACSS.Share error: %v\n", p.PID, err)
+					} else {
+						log.Printf("[DPSS wpACSS] [New Party %v] wpACSS.Share done\n", p.PID)
+						return md, sigF
+					}
 				} else {
-					sigF, _ := p.TblsScheme.Recover(p.SigPKNew, mFinish, sigs2, int(2*p.F+1), int(p.N))
-					log.Printf("[DPSS wpACSS] [New Party %v] wpACSS.Share done\n", p.PID)
-					return md, sigF
+					sigF, err := tblsScheme.Recover(p.SigPKNew, mFinish, sigs2, int(2*p.F+1), int(p.N))
+					if err != nil {
+						log.Printf("[DPSS wpACSS] [New Party %v] wpACSS.Share error: %v\n", p.PID, err)
+					} else {
+						log.Printf("[DPSS wpACSS] [New Party %v] wpACSS.Share done\n", p.PID)
+						return md, sigF
+					}
 				}
 			}
 
@@ -192,15 +204,17 @@ func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current boo
 }
 
 //ShareReceive handles the wpAcssShare message from other parties, and returns a value-proof tuple (v, pi)
-func ShareReceive(p *party.HonestParty, isNew bool, ID []byte) (party.VShare, party.PiShare, error) {
-	m := <-p.GetMessage("wpAcssShare", ID)
+func ShareReceive(p *party.HonestParty, isNew bool, ID []byte, senderID uint32) (party.VShare, party.PiShare, error) {
+	extendID := append(ID, utils.Uint32ToBytes(senderID)...)
+	m := <-p.GetMessage("wpAcssShare", extendID)
+	tblsScheme := tbls.NewThresholdSchemeOnG1(kyberbls.NewBLS12381Suite())
 
 	var wpAcssMsg protobuf.WpAcssShare
 	err := proto.Unmarshal(m.Data, &wpAcssMsg)
 	if err != nil {
 		log.Printf("[DPSS wpACSS] [New Party %v] receive wpAcssShare error: %v\n", p.PID, err)
 	} //else {
-	// 	log.Printf("[DPSS wpACSS.Share] [New Party %v] receive wpAcssShare from [Old Party %v]\n", p.PID, m.Sender)
+	// log.Printf("[DPSS wpACSS.Share] [New Party %v] receive wpAcssShare from [Old Party %v]\n", p.PID, m.Sender)
 	// }
 
 	vDec, pDec, mdPartial, isValid := decapAndVrfyWpAcssSend(p, &wpAcssMsg)
@@ -208,7 +222,7 @@ func ShareReceive(p *party.HonestParty, isNew bool, ID []byte) (party.VShare, pa
 		return party.VShare{}, party.PiShare{}, errors.New("invalid wpAcssShare")
 	}
 
-	senderID := m.Sender
+	// senderID := m.Sender
 	var md []byte
 
 	// md = ID||d||g^s||PCvss||VCvs||PCdsk||VCdpk||PCphi[0...3]
@@ -216,30 +230,34 @@ func ShareReceive(p *party.HonestParty, isNew bool, ID []byte) (party.VShare, pa
 	md = append(ID, utils.Uint32ToBytes(senderID)...)
 	md = append(md, mdPartial...)
 	mReady := append([]byte("ready"), md...) //mReady = ready||md
-	sigShare, _ := p.TblsScheme.Sign(p.SigSK, mReady)
+	// sigShare, _ := p.TblsScheme.Sign(p.SigSK, mReady)
+	sigShare, _ := tblsScheme.Sign(p.SigSK, mReady)
 
 	var echoMsg = new(protobuf.WpAcssEcho)
 	echoMsg.Sigshare = sigShare
 	data, _ := proto.Marshal(echoMsg)
 	sendEchoMsg := protobuf.Message{
 		Type:   "wpAcssEcho",
-		Id:     ID,
+		Id:     extendID,
 		Sender: p.PID,
 		Data:   data,
 	}
 
 	if isNew {
 		p.SendToOldCommittee(&sendEchoMsg, senderID)
+		// log.Printf("[DPSS wpACSS] [New Party %v] send wpAcssEcho to [Old Party %v]\n", p.PID, senderID)
 	} else {
 		p.Send(&sendEchoMsg, senderID)
+		// log.Printf("[DPSS wpACSS] [New Party %v] send wpAcssEcho to [Party %v]\n", p.PID, senderID)
 	}
 
-	m2 := <-p.GetMessage("wpAcssReady", ID)
+	m2 := <-p.GetMessage("wpAcssReady", extendID)
+	// log.Printf("[DPSS wpACSS] [New Party %v] receive wpAcssReady from [Old Party %v]\n", p.PID, m2.Sender)
 	var wpAcssReadyMsg protobuf.WpAcssReady
 	proto.Unmarshal(m2.Data, &wpAcssReadyMsg)
 
 	if !bytes.Equal(md, wpAcssReadyMsg.Md) {
-		log.Printf("[DPSS wpACSS] [New Party %v] receive wpAcssReady error: md not equal\n", p.PID)
+		// log.Printf("[DPSS wpACSS] [New Party %v] receive wpAcssReady from [Party %v] error: md not equal\n md=%v\n md'=%v", p.PID, m2.Sender, md, wpAcssReadyMsg.Md)
 		return party.VShare{}, party.PiShare{}, errors.New("md not equal")
 	}
 
@@ -253,23 +271,24 @@ func ShareReceive(p *party.HonestParty, isNew bool, ID []byte) (party.VShare, pa
 
 	mdF := append([]byte("finish"), wpAcssReadyMsg.Md...)
 	finishMsg := new(protobuf.WpAcssFinish)
-	finishMsg.Sigshare, _ = p.TblsScheme.Sign(p.SigSK, mdF)
+	// finishMsg.Sigshare, _ = p.TblsScheme.Sign(p.SigSK, mdF)
+	finishMsg.Sigshare, _ = tblsScheme.Sign(p.SigSK, mdF)
 	data, _ = proto.Marshal(finishMsg)
 	sendFinishMsg := protobuf.Message{
 		Type:   "wpAcssFinish",
-		Id:     ID,
+		Id:     extendID,
 		Sender: p.PID,
 		Data:   data,
 	}
 	if isNew {
-		err = p.SendToOldCommittee(&sendFinishMsg, senderID)
+		err = p.SendToOldCommittee(&sendFinishMsg, m2.Sender)
 		if err != nil {
 			log.Printf("[DPSS wpACSS] [New Party %d] send wpAcssFinish error: %v\n", p.PID, err)
 		} //else {
 		// 	log.Printf("[DPSS wpACSS] [New Party %d] send wpAcssFinish to [Old Party %v] done\n", p.PID, senderID)
 		// }
 	} else {
-		err = p.Send(&sendFinishMsg, senderID)
+		err = p.Send(&sendFinishMsg, m2.Sender)
 		if err != nil {
 			log.Printf("[DPSS wpACSS] [New Party %d] send wpAcssFinish error: %v\n", p.PID, err)
 		} //else {
