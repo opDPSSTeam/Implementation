@@ -85,7 +85,7 @@ func TestDpssOld(t *testing.T) {
 
 	for i := uint32(0); i < N; i++ {
 		go func(i uint32) {
-			vShare, _, err := wpACSS.WpAcssShareEcho(pNext[i], true, ID)
+			vShare, _, err := wpACSS.ShareReceive(pNext[i], true, ID)
 			if err != nil {
 				fmt.Printf("error: %v\n", err)
 				wg.Done()

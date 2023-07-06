@@ -145,6 +145,15 @@ message wpAcssEcho{
   bytes sigshare = 1;
 }
 
+message wpAcssReady{
+  bytes md = 1;
+  bytes sig = 2;
+}
+
+message wpAcssFinish{
+  bytes sigshare = 1;
+}
+
 message wpAcssCallHelp{
   uint32 caller = 1;
   repeated uint32 indices = 2;

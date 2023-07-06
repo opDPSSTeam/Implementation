@@ -132,7 +132,7 @@ type HonestParty struct {
 	shareTuples []VPiTuple    //v-pi tuples from other nodes
 	VCom        []bls.G1Point //commitments of all shares
 
-	tblsScheme sign.ThresholdScheme
+	TblsScheme sign.ThresholdScheme
 	SigPK      *share.PubPoly  //tss pk of current committee
 	SigSK      *share.PriShare //tss sk of current committee
 	SigPKNew   *share.PubPoly  //tss pk of next (new) committee
@@ -183,7 +183,7 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 		sendToNextChannels: make([]chan *protobuf.Message, N),
 		sendToOldChannels:  make([]chan *protobuf.Message, N),
 
-		tblsScheme: tblsScheme,
+		TblsScheme: tblsScheme,
 		SigPK:      sigPK,
 		SigSK:      sigSK,
 		SigPKNew:   sigPKNew,
