@@ -1,11 +1,8 @@
 package dpss
 
 import (
-	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 
@@ -14,7 +11,6 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/polyring"
 	"github.com/opDPSSTeam/DPSS/internal/vss"
 	"github.com/opDPSSTeam/DPSS/internal/wpACSS"
-	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,16 +25,13 @@ func TestDpssOld(t *testing.T) {
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	skNew, pkNew := party.SigKeyGen(N, 2*F+1)
-	vc := pointproofs.New(N)
 
 	var p = make([]*party.HonestParty, N)
 	var pNext = make([]*party.HonestParty, N)
 
 	for i := uint32(0); i < N; i++ {
 		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i])
-		p[i].SetVC(vc)
 		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i])
-		pNext[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -115,16 +108,13 @@ func TestDpssNew(t *testing.T) {
 	F := uint32(2)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	skNew, pkNew := party.SigKeyGen(N, 2*F+1)
-	vc := pointproofs.New(N)
 
 	var p = make([]*party.HonestParty, N)
 	var pNext = make([]*party.HonestParty, N)
 
 	for i := uint32(0); i < N; i++ {
 		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i])
-		p[i].SetVC(vc)
 		pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i])
-		pNext[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -203,33 +193,32 @@ func TestDpssNew(t *testing.T) {
 	}
 }
 
-func TestSplitMd(t *testing.T) {
-	var md []byte
-	g1 := bls.GenG1
-	g1Compressed := bls.ToCompressedG1(&g1)
-	fmt.Printf("len(g1Compressed): %v\n", len(g1Compressed))
-	strG1Comp := hex.EncodeToString(g1Compressed)
-	fmt.Printf("len([]byte(strG1Comp)): %v\n", len([]byte(strG1Comp)))
-	md = append([]byte("||"), []byte(strG1Comp)...)
-	md = append(md, []byte("||")...)
-	str := string(md)
-	fmt.Printf("str: %v\n", str)
-	s := strings.Split(str, "||")
-	fmt.Printf("s: %v\n", s[1])
-	decS, _ := hex.DecodeString(s[1])
-	g2, _ := bls.FromCompressedG1(decS)
-	fmt.Printf("bls.EqualG1(&g1, g2): %v\n", bls.EqualG1(&g1, g2))
-
-	md2 := append([]byte("||"), g1Compressed...)
-	md2 = append(md2, []byte("||")...)
-	res := bytes.Split(md2, []byte("||"))
-	g3, _ := bls.FromCompressedG1(res[1])
-	fmt.Printf("bls.EqualG1(&g1, g3): %v\n", bls.EqualG1(&g1, g3))
-}
-
 func TestSubstractSet(t *testing.T) {
 	a := []uint32{1, 2, 3, 4, 5}
 	b := []uint32{1, 2, 3}
 	c := substractSet(a, b)
 	fmt.Printf("c: %v\n", c)
+}
+
+func TestReconstruct(t *testing.T) {
+	//this test reconstructs the secret using the new shares, which are output in the log files
+	newShares := make([]bls.Fr, 4)
+	pos := make([]bls.Fr, 4)
+	for i := 0; i < 4; i++ {
+		bls.AsFr(&pos[i], uint64(i+1))
+	}
+
+	//replace the strings with the new shares in the log files
+	bls.SetFr(&newShares[0], "42709719454920816652893449815520966801756888693973504630283189459786959580583")
+	bls.SetFr(&newShares[1], "32983563734715442826339159122855967765823224887419371437962720219635337964308")
+	bls.SetFr(&newShares[2], "23257408014510068999784868430190968729889561080865238245642250979483716348033")
+	bls.SetFr(&newShares[3], "13531252294304695173230577737525969693955897274311105053321781739332094731758")
+
+	F := uint32(1)
+	var secret bls.Fr
+	bls.AsFr(&secret, uint64(12345))
+
+	poly := polyring.LagrangeInterpolate(F, pos[:F+2], newShares[:F+2])
+	fmt.Println("poly: ", party.PolyToString(poly))
+	assert.True(t, bls.EqualFr(&secret, &poly[0]), "Reconstruct secret from the newshares fail")
 }

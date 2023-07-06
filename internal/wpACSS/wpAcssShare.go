@@ -178,7 +178,6 @@ func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current boo
 			// }
 
 			sigs2 = append(sigs2, finishMsg.Sigshare)
-			// var sigF []byte
 			if uint32(len(sigs2)) > 2*p.F {
 				if current {
 					sigF, err := tblsScheme.Recover(p.SigPK, mFinish, sigs2, int(2*p.F+1), int(p.N))
@@ -198,7 +197,6 @@ func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current boo
 					}
 				}
 			}
-
 		}
 	}
 }
