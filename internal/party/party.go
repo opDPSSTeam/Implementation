@@ -10,6 +10,7 @@ import (
 	"github.com/drand/kyber/sign/tbls"
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/polycommit"
+	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
 )
@@ -122,6 +123,7 @@ type HonestParty struct {
 	FS       *polycommit.FFTSettings
 	KZG      *polycommit.KZGSettings
 	MutexKZG *sync.Mutex
+	VC       *pointproofs.VectorCommit
 
 	Share       bls.Fr        //share of this party
 	Gs          bls.G1Point   //commitment of the original share (invariant)
@@ -264,4 +266,8 @@ func (p *HonestParty) SetGs(gs *bls.G1Point) {
 
 func (p *HonestParty) GetVCom(index uint32) *bls.G1Point {
 	return &p.VCom[index]
+}
+
+func (p *HonestParty) SetVC(vc *pointproofs.VectorCommit) {
+	p.VC = vc
 }

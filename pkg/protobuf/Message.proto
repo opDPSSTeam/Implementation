@@ -49,18 +49,16 @@ message Vote{
 
 //apdb
 message Store{
-  bytes vc = 1;
+  string vc = 1;
   bytes shard =2;
-  repeated bytes proof1 = 3;
-  repeated int64 proof2 = 4;
+  string proof = 3;
 }
 message Stored{
   bytes sigshare = 1 ;
 }
 message Recast{
   bytes shard = 1;
-  repeated bytes proof1 = 2;
-  repeated int64 proof2 = 3;
+  string proof = 2;
 }
 
 //vdd
@@ -228,8 +226,18 @@ message Aux{
 }
 
 //init sharing
-message Init{
+message VC{
+  uint32 index = 1;
+  string srs = 2;
+}
+
+message InitOld{
   bytes share = 1;
   repeated bytes vcom = 2;
   bytes Gs = 3;
+  VC vc = 4;
+}
+
+message InitNew{
+  VC vc =1;
 }
