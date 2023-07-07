@@ -137,7 +137,9 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 		lenRes := len(res)
 		var FLGContinue = false
 		for i := 0; i < lenRes; i++ {
-			if !vrfyRecCont(p, utils.Uint32ToBytes(p.PID+1), res[i]) {
+			input := append(ID, utils.Uint32ToBytes(res[i].dealerID)...)
+			input = append(input, utils.Uint32ToBytes(p.PID)...)
+			if !vrfyRecCont(p, input, res[i]) {
 				log.Printf("[DPSS Recover] [New Party %v] verify the RecCont (dealerID: %v) from [New Party %v] fail\n", p.PID, res[i].dealerID, m.Sender)
 				FLGContinue = true
 				continue
@@ -190,7 +192,9 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 				var posI bls.Fr
 				bls.AsFr(&posI, uint64(p.PID+1))
 				bls.EvalPolyAt(&sMaskedDI, polyD, &posI)
-				FdiG1, _ := dprf.Combine(p, F, utils.Uint32ToBytes(p.PID+1), IdxList, ContribList, piDPRFList, p.GetPiShare(dealerID).PrfRec.VCdpk)
+				input := append(ID, utils.Uint32ToBytes(dealerID)...)
+				input = append(input, utils.Uint32ToBytes(p.PID)...)
+				FdiG1, _ := dprf.Combine(p, F, input, IdxList, ContribList, piDPRFList, p.GetPiShare(dealerID).PrfRec.VCdpk)
 				Fdi := utils.HashG1ToFr(&FdiG1)
 				var sdi bls.Fr
 				bls.SubModFr(&sdi, &sMaskedDI, Fdi)
@@ -257,7 +261,9 @@ func recContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, call
 	bls.AddModFr(&sMasked, &v.S, &v.RecPolyEval[index])
 	bls.AddG1(&wiMask, &pi.Wvssi, &pi.PrfRec.Wphi[index])
 	bls.AddG1(&Cmask, &pi.PCvss, &pi.PrfRec.PCphi[index])
-	DPRFContribF, piDPRF := dprf.Contrib(utils.Uint32ToBytes(callerID+1), p.DSKi[dealerID], p.DPKi[dealerID], p.GetPiShare(dealerID).PrfRec.PiDpki)
+	input := append(ID, utils.Uint32ToBytes(dealerID)...)
+	input = append(input, utils.Uint32ToBytes(callerID)...)
+	DPRFContribF, piDPRF := dprf.Contrib(input, p.DSKi[dealerID], p.DPKi[dealerID], p.GetPiShare(dealerID).PrfRec.PiDpki)
 	piHelp := ProofHelp{
 		Gs:        pi.Gs,
 		PCdsk:     pi.PrfRec.PCdsk,

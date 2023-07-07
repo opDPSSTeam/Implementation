@@ -45,7 +45,7 @@ func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current boo
 	p.MutexKZG.Unlock()
 
 	//generate recovery polynomials, polyPhi includes ell=4 polynomials
-	dskShare, polyPhi, proofRec := genRecPoly(p, F, N)
+	dskShare, polyPhi, proofRec := genRecPoly(p, ID, F, N)
 
 	//generate vs and commit to it
 	vs := make([]bls.G1Point, N)
@@ -355,7 +355,7 @@ func verifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiSh
 	return true
 }
 
-func genRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr, []party.ProofRec) {
+func genRecPoly(p *party.HonestParty, ID []byte, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr, []party.ProofRec) {
 	dsk, _, PCdsk, VCdpk, dskShare, dpkShare, wdsk, piDpk := dprf.InitDPRF(p, f, n)
 
 	y := make([]bls.Fr, n)
@@ -372,9 +372,9 @@ func genRecPoly(p *party.HonestParty, f uint32, n uint32) ([]bls.Fr, [][]bls.Fr,
 	}
 
 	for i := uint32(0); i < n; i++ {
-		//the input to DPRF.Eval() is 1, ..., n
-		//so party i corresponds to input value i+1
-		tmp := dprf.Eval(utils.Uint32ToBytes(i+1), *dsk)
+		input := append(ID, utils.Uint32ToBytes(p.PID)...)
+		input = append(input, utils.Uint32ToBytes(i)...)
+		tmp := dprf.Eval(input, *dsk) // input = ID||dealerID||i
 		y[i] = *utils.HashG1ToFr(&tmp)
 		bls.AsFr(&I[i], uint64(i+1))
 

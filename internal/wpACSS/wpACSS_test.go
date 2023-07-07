@@ -26,9 +26,9 @@ func TestGenRecPoly(t *testing.T) {
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
 
+	ID := []byte("testShare")
 	//uncomment the block comment in genRecPoly to test
-	genRecPoly(p, F, N)
-
+	genRecPoly(p, ID, F, N)
 }
 
 func TestShare(t *testing.T) {
@@ -190,7 +190,9 @@ func TestRecContrib(t *testing.T) {
 		if i != dealerID && i != callerID {
 			helperID := i
 			cont := recContrib(p[helperID], ID, F, dealerID, callerID, *p[helperID].GetVShare(dealerID), *p[helperID].GetPiShare(dealerID))
-			vrf := vrfyRecCont(p[callerID], utils.Uint32ToBytes(callerID+1), cont)
+			input := append(ID, utils.Uint32ToBytes(dealerID)...)
+			input = append(input, utils.Uint32ToBytes(callerID)...)
+			vrf := vrfyRecCont(p[callerID], input, cont)
 			assert.True(t, vrf, "Verify contribution failed")
 			log.Printf("Party %v has generated a valid RecCont for caller %v\n", i, callerID)
 		}
@@ -222,7 +224,9 @@ func TestRecContrib(t *testing.T) {
 	bls.AsFr(&posI, uint64(callerID+1))
 	bls.EvalPolyAt(&smi, polyD, &posI)
 
-	FdG1, _ := dprf.Combine(p[callerID], F, utils.Uint32ToBytes(callerID+1), IdxList, DPRFContribList, piDPRFList, p[callerID].GetPiShare(dealerID).PrfRec.VCdpk)
+	input := append(ID, utils.Uint32ToBytes(dealerID)...)
+	input = append(input, utils.Uint32ToBytes(callerID)...)
+	FdG1, _ := dprf.Combine(p[callerID], F, input, IdxList, DPRFContribList, piDPRFList, p[callerID].GetPiShare(dealerID).PrfRec.VCdpk)
 	Fd := utils.HashG1ToFr(&FdG1)
 	bls.SubModFr(&sRec, &smi, Fd)
 
