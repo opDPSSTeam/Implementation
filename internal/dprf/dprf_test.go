@@ -19,7 +19,7 @@ func TestDPRF(t *testing.T) {
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
 	vc := pointproofs.New(N)
-	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
+	p := party.NewHonestParty(0, N, F, 0, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
 	p.SetVC(vc)
 
 	//test InitDPRF() and VrfyKey()
@@ -31,10 +31,8 @@ func TestDPRF(t *testing.T) {
 		t.Errorf("dpk is not equal to g^dsk")
 	}
 
-	index := make([]bls.Fr, N)
 	for i := uint32(0); i < N; i++ {
-		bls.AsFr(&index[i], uint64(i+1)) // Indexes = [1, ..., N]
-		if !VrfyKey(p, index[i], dski[i], dpki[i], *PCdsk, VCdpk, wdski[i], piDpk[i]) {
+		if !VrfyKey(p, i, dski[i], dpki[i], *PCdsk, VCdpk, wdski[i], piDpk[i]) {
 			t.Errorf("Vrfy DPRF keys failed")
 		}
 	}
@@ -53,12 +51,16 @@ func TestDPRF(t *testing.T) {
 		//fmt.Printf("Contrib, i=%d\n", i)
 		W[i], pi[i] = Contrib(x, dski[i], dpki[i], piDpk[i])
 		//fmt.Printf("VrfyContrib, i=%d\n", i)
-		if !VrfyContrib(x, W[i], pi[i], VCdpk) {
+		if !VrfyContrib(p, i, x, W[i], pi[i], VCdpk) {
 			t.Errorf("Vrfy DPRF contribution failed for i=%d", i)
 		}
 	}
 
 	//test Combine()
+	index := make([]bls.Fr, N)
+	for i := uint32(0); i < N; i++ {
+		bls.AsFr(&index[i], uint64(i+1))
+	}
 	v1, err := Combine(p, F, x, index[:F+1], W[:F+1], pi[:F+1], VCdpk)
 	if err != nil {
 		fmt.Printf("error while combining: %s\n", err)

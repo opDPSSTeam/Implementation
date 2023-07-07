@@ -81,11 +81,18 @@ func SliceToArray(bytes []byte) [32]byte {
 }
 
 // HashG1ToFr map bls.G1Point to kbls.Fr using sha256
-func HashG1ToFr(g *bls.G1Point) *bls.Fr {
+func HashG1ToFr(g *bls.G1Point) *kbls.Fr {
 	str := sha256.Sum256([]byte(g.String()))
 	var bv big.Int
 	bv.SetString(hex.EncodeToString(str[:]), 16)
-	return (*bls.Fr)(kbls.NewFr().RedFromBytes(bv.Bytes()))
+	return kbls.NewFr().RedFromBytes(bv.Bytes())
+}
+
+func HashG2ToFr(g *bls.G2Point) *kbls.Fr {
+	str := sha256.Sum256([]byte(g.String()))
+	var bv big.Int
+	bv.SetString(hex.EncodeToString(str[:]), 16)
+	return kbls.NewFr().RedFromBytes(bv.Bytes())
 }
 
 func HashByteToFr(b []byte) *kbls.Fr {

@@ -3,12 +3,16 @@ package wpACSS
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"log"
+	"math/big"
 
 	kyberbls "github.com/drand/kyber-bls12381"
 	blsSig "github.com/drand/kyber/sign/bls"
 	"github.com/drand/kyber/sign/tbls"
+	kbls "github.com/kilic/bls12-381"
 
 	"google.golang.org/protobuf/proto"
 
@@ -18,7 +22,6 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/vss"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
-	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
 )
 
 // ShareSend shares the secret to the other parties, and returns a message md and a signature on md
@@ -53,19 +56,22 @@ func ShareSend(ctx context.Context, p *party.HonestParty, ID []byte, current boo
 		bls.MulG1(&vs[i], &bls.GenG1, &shares[i+1])
 	}
 
-	vsBytes := make([][]byte, N)
+	vsFr := make([]kbls.Fr, N)
 	for i := uint32(0); i < N; i++ {
-		vsBytes[i] = bls.ToCompressedG1(&vs[i])
+		str := sha256.Sum256([]byte(vs[i].String()))
+		var bv big.Int
+		bv.SetString(hex.EncodeToString(str[:]), 16)
+		vsFr[i] = *kbls.NewFr().RedFromBytes(bv.Bytes())
 	}
-	tre, _ := vectorcommitment.NewMerkleTree(vsBytes)
-	VCvs := tre.GetMerkleTreeRoot()
+	VCvs := p.VC.Commit(vsFr)
 
 	var tmpV *party.VShare
 	var tmpP *party.PiShare
 	var data, mdPartial []byte
 	var FLGmdEncoded = false
-	for i := uint32(0); i < N; i++ {
-		piVs := tre.GetMerkleTreeProofPi(i)
+	for i := 0; uint32(i) < N; i++ {
+		// piVs := tre.GetMerkleTreeProofPi(i)
+		piVs := p.VC.Open(vsFr, i)
 
 		var PolyEval = make([]bls.Fr, 4)
 		var tmpPos bls.Fr
@@ -320,7 +326,9 @@ func verifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiSh
 
 	var Gsi bls.G1Point
 	bls.MulG1(&Gsi, &bls.GenG1, &vDec.S)
-	if !vectorcommitment.VerifyMerkleTreeProof(pDec.VCvs, pDec.PiVs.Path, pDec.PiVs.Indicator, bls.ToCompressedG1(&Gsi)) {
+	GsiFr := utils.HashG1ToFr(&Gsi)
+	// if !vectorcommitment.VerifyMerkleTreeProof(pDec.VCvs, pDec.PiVs.Path, pDec.PiVs.Indicator, bls.ToCompressedG1(&Gsi)) {
+	if p.VC.Verify(pDec.VCvs, *GsiFr, int(p.PID), pDec.PrfRec.PiDpki) {
 		log.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend: verify piVs failed\n", p.PID)
 		return false
 	}
@@ -335,7 +343,7 @@ func verifyWpAcssSend(p *party.HonestParty, vDec *party.VShare, pDec *party.PiSh
 	}
 	p.MutexKZG.Unlock()
 
-	if !dprf.VrfyKey(p, index, vDec.DskShare, pDec.PrfRec.Dpki, pDec.PrfRec.PCdsk, pDec.PrfRec.VCdpk, pDec.PrfRec.Wdski, pDec.PrfRec.PiDpki) {
+	if !dprf.VrfyKey(p, p.PID, vDec.DskShare, pDec.PrfRec.Dpki, pDec.PrfRec.PCdsk, pDec.PrfRec.VCdpk, pDec.PrfRec.Wdski, pDec.PrfRec.PiDpki) {
 		log.Printf("[DPSS wpACSS] [New Party %v] verifyWpAcssSend: verify dskShare failed\n", p.PID)
 		return false
 	}
@@ -375,7 +383,7 @@ func genRecPoly(p *party.HonestParty, ID []byte, f uint32, n uint32) ([]bls.Fr, 
 		input := append(ID, utils.Uint32ToBytes(p.PID)...)
 		input = append(input, utils.Uint32ToBytes(i)...)
 		tmp := dprf.Eval(input, *dsk) // input = ID||dealerID||i
-		y[i] = *utils.HashG1ToFr(&tmp)
+		y[i] = *(*bls.Fr)(utils.HashG1ToFr(&tmp))
 		bls.AsFr(&I[i], uint64(i+1))
 
 		// uncomment to test genRecPoly()
@@ -440,24 +448,27 @@ func encapsulateWpAcssSend(v *party.VShare, pi *party.PiShare, FLGmdEncoded bool
 	msg.P.Wvssi = bls.ToCompressedG1(&pi.Wvssi)
 	msg.P.PCz = bls.ToCompressedG1(&pi.PCz)
 	msg.P.Wz0 = bls.ToCompressedG1(&pi.Wz0)
-	msg.P.VCvs = append([]byte{}, pi.VCvs...)
+	// msg.P.VCvs = append([]byte{}, pi.VCvs...)
+	msg.P.VCvs = pi.VCvs
 
-	msg.P.PiVs = new(protobuf.PiVcomMerkle)
-	for i := 0; i < len(pi.PiVs.Indicator); i++ {
-		msg.P.PiVs.Indicator = append(msg.P.PiVs.Indicator, pi.PiVs.Indicator[i])
-		msg.P.PiVs.Path = append(msg.P.PiVs.Path, pi.PiVs.Path[i])
-	}
+	// msg.P.PiVs = new(protobuf.PiVcomMerkle)
+	// for i := 0; i < len(pi.PiVs.Indicator); i++ {
+	// 	msg.P.PiVs.Indicator = append(msg.P.PiVs.Indicator, pi.PiVs.Indicator[i])
+	// 	msg.P.PiVs.Path = append(msg.P.PiVs.Path, pi.PiVs.Path[i])
+	// }
+	msg.P.PiVs = pi.PiVs
 
 	msg.P.ProofRec = new(protobuf.ProofRec)
 	msg.P.ProofRec.Dpki = bls.ToCompressedG2(&pi.PrfRec.Dpki)
 	msg.P.ProofRec.PCdsk = bls.ToCompressedG1(&pi.PrfRec.PCdsk)
 	msg.P.ProofRec.VCdpk = pi.PrfRec.VCdpk
 	msg.P.ProofRec.Wdski = bls.ToCompressedG1(&pi.PrfRec.Wdski)
-	msg.P.ProofRec.PiDpki = new(protobuf.PiVcomMerkle)
-	for i := 0; i < len(pi.PrfRec.PiDpki.Indicator); i++ {
-		msg.P.ProofRec.PiDpki.Indicator = append(msg.P.ProofRec.PiDpki.Indicator, pi.PrfRec.PiDpki.Indicator[i])
-		msg.P.ProofRec.PiDpki.Path = append(msg.P.ProofRec.PiDpki.Path, pi.PrfRec.PiDpki.Path[i])
-	}
+	// msg.P.ProofRec.PiDpki = new(protobuf.PiVcomMerkle)
+	// for i := 0; i < len(pi.PrfRec.PiDpki.Indicator); i++ {
+	// 	msg.P.ProofRec.PiDpki.Indicator = append(msg.P.ProofRec.PiDpki.Indicator, pi.PrfRec.PiDpki.Indicator[i])
+	// 	msg.P.ProofRec.PiDpki.Path = append(msg.P.ProofRec.PiDpki.Path, pi.PrfRec.PiDpki.Path[i])
+	// }
+	msg.P.ProofRec.PiDpki = pi.PrfRec.PiDpki
 	msg.P.ProofRec.PCphi = make([][]byte, len(pi.PrfRec.PCphi))
 	msg.P.ProofRec.Wphi = make([][]byte, len(pi.PrfRec.Wphi))
 	for i := 0; i < len(pi.PrfRec.PCphi); i++ {
@@ -525,12 +536,13 @@ func decapAndVrfyWpAcssSend(p *party.HonestParty, m *protobuf.WpAcssShare) (*par
 
 	piDec.VCvs = m.P.VCvs
 
-	piDec.PiVs.Path = make([][]byte, len(m.P.PiVs.Path))
-	piDec.PiVs.Indicator = make([]int64, len(m.P.PiVs.Indicator))
-	for i := 0; i < len(m.P.PiVs.Path); i++ {
-		piDec.PiVs.Path[i] = m.P.PiVs.Path[i]
-		piDec.PiVs.Indicator[i] = m.P.PiVs.Indicator[i]
-	}
+	// piDec.PiVs.Path = make([][]byte, len(m.P.PiVs.Path))
+	// piDec.PiVs.Indicator = make([]int64, len(m.P.PiVs.Indicator))
+	// for i := 0; i < len(m.P.PiVs.Path); i++ {
+	// 	piDec.PiVs.Path[i] = m.P.PiVs.Path[i]
+	// 	piDec.PiVs.Indicator[i] = m.P.PiVs.Indicator[i]
+	// }
+	piDec.PiVs = m.P.PiVs
 
 	DpkiRaw, _ := bls.FromCompressedG2(m.P.ProofRec.Dpki)
 	bls.CopyG2(&piDec.PrfRec.Dpki, DpkiRaw)
@@ -543,12 +555,13 @@ func decapAndVrfyWpAcssSend(p *party.HonestParty, m *protobuf.WpAcssShare) (*par
 	wdskiRaw, _ := bls.FromCompressedG1(m.P.ProofRec.Wdski)
 	bls.CopyG1(&piDec.PrfRec.Wdski, wdskiRaw)
 
-	piDec.PrfRec.PiDpki.Indicator = make([]int64, len(m.P.ProofRec.PiDpki.Indicator))
-	piDec.PrfRec.PiDpki.Path = make([][]byte, len(m.P.ProofRec.PiDpki.Path))
-	for i := 0; i < len(m.P.ProofRec.PiDpki.Indicator); i++ {
-		piDec.PrfRec.PiDpki.Indicator[i] = m.P.ProofRec.PiDpki.Indicator[i]
-		piDec.PrfRec.PiDpki.Path[i] = m.P.ProofRec.PiDpki.Path[i]
-	}
+	// piDec.PrfRec.PiDpki.Indicator = make([]int64, len(m.P.ProofRec.PiDpki.Indicator))
+	// piDec.PrfRec.PiDpki.Path = make([][]byte, len(m.P.ProofRec.PiDpki.Path))
+	// for i := 0; i < len(m.P.ProofRec.PiDpki.Indicator); i++ {
+	// 	piDec.PrfRec.PiDpki.Indicator[i] = m.P.ProofRec.PiDpki.Indicator[i]
+	// 	piDec.PrfRec.PiDpki.Path[i] = m.P.ProofRec.PiDpki.Path[i]
+	// }
+	piDec.PrfRec.PiDpki = m.P.ProofRec.PiDpki
 
 	piDec.PrfRec.PCphi = make([]bls.G1Point, len(m.P.ProofRec.PCphi))
 	piDec.PrfRec.Wphi = make([]bls.G1Point, len(m.P.ProofRec.Wphi))

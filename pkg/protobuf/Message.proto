@@ -116,9 +116,9 @@ message PiVcomMerkle{
 message ProofRec{
   bytes dpki=1;
   bytes PCdsk=2;
-  bytes VCdpk=3;
+  string VCdpk=3;
   bytes wdski=4;
-  PiVcomMerkle piDpki=5;
+  string piDpki=5;
   repeated bytes PCphi=6;
   repeated bytes wphi=7;
 }
@@ -129,8 +129,8 @@ message piInShare{
   bytes wvssi=3;
   bytes PCz=4;
   bytes wz0 = 5;
-  bytes VCvs=6;
-  PiVcomMerkle piVs=7;
+  string VCvs=6;
+  string piVs=7;
   ProofRec proofRec=8;
 }
 
@@ -162,7 +162,7 @@ message proofDPRF{
   bytes c=2;
   bytes u=3;
   bytes dpk=4;
-  PiVcomMerkle piDpk=5;
+  string piDpk=5;
 }
 
 message proofHelp{
@@ -188,7 +188,7 @@ message wpAcssHelp{
 message DpssCom{
   bytes Cold = 1;
   bytes Gsi = 2;
-  PiVcomMerkle piOld = 3;
+  string piOld = 3;
 }
 
 message DpssProof{
@@ -218,7 +218,7 @@ message AuxCont{
   uint32 k = 1;
   bytes Gs = 2;
   bytes Cvcom = 3;
-  PiVcomMerkle piVcom = 4;
+  string piVcom = 4;
 }
 
 message Aux{

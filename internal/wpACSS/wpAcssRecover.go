@@ -63,9 +63,9 @@ func Help(p *party.HonestParty, ID []byte, F uint32) {
 		err := proto.Unmarshal(m.Data, &msgCallHelp)
 		if err != nil {
 			log.Printf("[DPSS Recover] [New Part %v] receive wpAcssCallHelp error: %v\n", p.PID, err)
-		} else {
-			log.Printf("[DPSS Recover] [New Party %v] receive WpAcssCallHelp from [New Party %v]\n", p.PID, msgCallHelp.Caller)
-		}
+		} //else {
+		// 	log.Printf("[DPSS Recover] [New Party %v] receive WpAcssCallHelp from [New Party %v]\n", p.PID, msgCallHelp.Caller)
+		// }
 
 		Shelp := msgCallHelp.Indices
 
@@ -139,7 +139,7 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 		for i := 0; i < lenRes; i++ {
 			input := append(ID, utils.Uint32ToBytes(res[i].dealerID)...)
 			input = append(input, utils.Uint32ToBytes(p.PID)...)
-			if !vrfyRecCont(p, input, res[i]) {
+			if !vrfyRecCont(p, m.Sender, input, res[i]) {
 				log.Printf("[DPSS Recover] [New Party %v] verify the RecCont (dealerID: %v) from [New Party %v] fail\n", p.PID, res[i].dealerID, m.Sender)
 				FLGContinue = true
 				continue
@@ -194,8 +194,8 @@ func WaitHelp(p *party.HonestParty, ID []byte, F uint32, N uint32, Shelp []uint3
 				bls.EvalPolyAt(&sMaskedDI, polyD, &posI)
 				input := append(ID, utils.Uint32ToBytes(dealerID)...)
 				input = append(input, utils.Uint32ToBytes(p.PID)...)
-				FdiG1, _ := dprf.Combine(p, F, input, IdxList, ContribList, piDPRFList, p.GetPiShare(dealerID).PrfRec.VCdpk)
-				Fdi := utils.HashG1ToFr(&FdiG1)
+				FdiG1, _ := dprf.Combine(p, F, input, PCdskHelperMap[tmpCdk], IdxList, ContribList, piDPRFList, p.GetPiShare(dealerID).PrfRec.VCdpk)
+				Fdi := (*bls.Fr)(utils.HashG1ToFr(&FdiG1))
 				var sdi bls.Fr
 				bls.SubModFr(&sdi, &sMaskedDI, Fdi)
 				SrecMap[dealerID] = sdi
@@ -218,9 +218,9 @@ func decapsulateRes(m *protobuf.Message, pid uint32) ([]RecCont, error) {
 	if err != nil {
 		log.Printf("[DPSS Recover] [New Party %v] receive WpAcssHelp error: %v\n", pid, err)
 		return nil, err
-	} else {
-		log.Printf("[DPSS Recover] [New Party %v] receive WpAcssHelp from Party %v\n", pid, m.Sender)
-	}
+	} //else {
+	// 	log.Printf("[DPSS Recover] [New Party %v] receive WpAcssHelp from Party %v\n", pid, m.Sender)
+	// }
 	lenRes := len(helpMsg.Res)
 	var res = make([]RecCont, lenRes)
 	for i := 0; i < lenRes; i++ {
@@ -281,7 +281,7 @@ func recContrib(p *party.HonestParty, ID []byte, F uint32, dealerID uint32, call
 	return recCont
 }
 
-func vrfyRecCont(p *party.HonestParty, x []byte, recCont RecCont) bool {
+func vrfyRecCont(p *party.HonestParty, helperID uint32, x []byte, recCont RecCont) bool {
 	if bls.EqualZero(&recCont.sMasked) {
 		log.Printf("[DPSS Recover] [New Party %v] verify recContrib fail: sMasked is zero\n", p.PID)
 		return false
@@ -302,7 +302,7 @@ func vrfyRecCont(p *party.HonestParty, x []byte, recCont RecCont) bool {
 	}
 	p.MutexKZG.Unlock()
 
-	if !dprf.VrfyContrib(x, recCont.DPRFContribF, &recCont.proofHelp.proofDPRF, p.GetPiShare(recCont.dealerID).PrfRec.VCdpk) {
+	if !dprf.VrfyContrib(p, helperID, x, recCont.DPRFContribF, &recCont.proofHelp.proofDPRF, p.GetPiShare(recCont.dealerID).PrfRec.VCdpk) {
 		log.Printf("[DPSS Recover] [New Party %v] verify recContrib fail: DPRFContribF is not valid\n", p.PID)
 		return false
 	}

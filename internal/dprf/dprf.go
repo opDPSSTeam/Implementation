@@ -4,14 +4,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log"
 
-	// hbls "github.com/herumi/bls-eth-go-binary/bls"
+	kbls "github.com/kilic/bls12-381"
 
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/party"
 	"github.com/opDPSSTeam/DPSS/internal/vss"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
-	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
+	"github.com/opDPSSTeam/DPSS/pkg/utils"
 )
 
 type ProofDPRF struct {
@@ -19,14 +20,14 @@ type ProofDPRF struct {
 	c      bls.Fr
 	u      bls.Fr
 	dpki   bls.G2Point
-	piDpki vectorcommitment.PiVcomMerkle
+	piDpki string
 }
 
-func newProofDPRF(w bls.G1Point, c bls.Fr, u bls.Fr, dpki bls.G2Point, piDpki vectorcommitment.PiVcomMerkle) *ProofDPRF {
+func newProofDPRF(w bls.G1Point, c bls.Fr, u bls.Fr, dpki bls.G2Point, piDpki string) *ProofDPRF {
 	return &ProofDPRF{w, c, u, dpki, piDpki}
 }
 
-func InitDPRF(p *party.HonestParty, F uint32, N uint32) (*bls.Fr, *bls.G2Point, *bls.G1Point, []byte, []bls.Fr, []bls.G2Point, []bls.G1Point, []vectorcommitment.PiVcomMerkle) {
+func InitDPRF(p *party.HonestParty, F uint32, N uint32) (*bls.Fr, *bls.G2Point, *bls.G1Point, string, []bls.Fr, []bls.G2Point, []bls.G1Point, []string) {
 
 	var dsk bls.Fr
 	var dpk bls.G2Point
@@ -39,16 +40,15 @@ func InitDPRF(p *party.HonestParty, F uint32, N uint32) (*bls.Fr, *bls.G2Point, 
 		bls.MulG2(&dpkShare[i], &bls.GenG2, &dskShare[i+1])
 	}
 
-	dpkShareBytes := make([][]byte, N)
+	dpkShareFr := make([]kbls.Fr, N)
 	for i := uint32(0); i < N; i++ {
-		dpkShareBytes[i] = bls.ToCompressedG2(&dpkShare[i])
+		dpkShareFr[i] = *utils.HashG2ToFr(&dpkShare[i])
 	}
-	tre, _ := vectorcommitment.NewMerkleTree(dpkShareBytes)
-	VCdpk := tre.GetMerkleTreeRoot()
+	VCdpk := p.VC.Commit(dpkShareFr)
 
-	piDpk := make([]vectorcommitment.PiVcomMerkle, N)
-	for i := uint32(0); i < N; i++ {
-		piDpk[i] = tre.GetMerkleTreeProofPi(i)
+	piDpk := make([]string, N)
+	for i := 0; uint32(i) < N; i++ {
+		piDpk[i] = p.VC.Open(dpkShareFr, i)
 	}
 
 	return &dsk, &dpk, PCdsk, VCdpk, dskShare[1:], dpkShare, wdsk[1:], piDpk
@@ -60,9 +60,7 @@ func EncapsulatePiDPRF(pi *ProofDPRF) *protobuf.ProofDPRF {
 	msg.C = []byte(pi.c.String())
 	msg.U = []byte(pi.u.String())
 	msg.Dpk = bls.ToCompressedG2(&pi.dpki)
-	msg.PiDpk = new(protobuf.PiVcomMerkle)
-	msg.PiDpk.Path = pi.piDpki.Path
-	msg.PiDpk.Indicator = pi.piDpki.Indicator
+	msg.PiDpk = pi.piDpki
 	return msg
 }
 
@@ -79,27 +77,27 @@ func DecapsulatePiDPRF(msg *protobuf.ProofDPRF) *ProofDPRF {
 	bls.CopyFr(&pi.u, uRaw)
 	dvkRaw, _ := bls.FromCompressedG2(msg.Dpk)
 	bls.CopyG2(&pi.dpki, dvkRaw)
-	pi.piDpki.Path = msg.PiDpk.Path
-	pi.piDpki.Indicator = msg.PiDpk.Indicator
+	pi.piDpki = msg.PiDpk
 	return pi
 }
 
-func VrfyKey(p *party.HonestParty, i bls.Fr, dski bls.Fr, dpki bls.G2Point, PCdsk bls.G1Point, VCdpk []byte, wdski bls.G1Point, piDpki vectorcommitment.PiVcomMerkle) bool {
+func VrfyKey(p *party.HonestParty, i uint32, dski bls.Fr, dpki bls.G2Point, PCdsk bls.G1Point, VCdpk string, wdski bls.G1Point, piDpki string) bool {
+	var index bls.Fr
+	bls.AsFr(&index, uint64(i+1))
 	var tmp bls.G2Point
 	bls.MulG2(&tmp, &bls.GenG2, &dski)
 	if bls.EqualG2(&tmp, &dpki) {
 		p.MutexKZG.Lock()
-		if p.KZG.CheckProofSingle(&PCdsk, &wdski, &i, &dski) {
+		if p.KZG.CheckProofSingle(&PCdsk, &wdski, &index, &dski) {
 			p.MutexKZG.Unlock()
-			dpkiBytes := bls.ToCompressedG2(&dpki)
-			return vectorcommitment.VerifyMerkleTreeProof(VCdpk, piDpki.Path, piDpki.Indicator, dpkiBytes)
+			return p.VC.Verify(VCdpk, *utils.HashG2ToFr(&dpki), int(i), piDpki)
 		}
-		p.MutexKZG.Unlock()
 	}
+	p.MutexKZG.Unlock()
 	return false
 }
 
-func Contrib(x []byte, dski bls.Fr, dpki bls.G2Point, piDpki vectorcommitment.PiVcomMerkle) (bls.G1Point, *ProofDPRF) {
+func Contrib(x []byte, dski bls.Fr, dpki bls.G2Point, piDpki string) (bls.G1Point, *ProofDPRF) {
 	var w bls.G1Point
 	var sha256x bls.Fr
 	var W bls.G1Point
@@ -119,14 +117,10 @@ func Contrib(x []byte, dski bls.Fr, dpki bls.G2Point, piDpki vectorcommitment.Pi
 	r := bls.RandomFr()
 	bls.MulG1(&Wr, &w, r) //Wr=w^r
 
-	//fmt.Println("Wr: ", Wr.String())
-
 	//we use sha256 to build the hash function H2(x): {0,1}* -> Zp
 	msg := W.String() + w.String() + dpki.String() + bls.GenG1.String() + Wr.String()
 	hashedMsg := sha256.Sum256([]byte(msg))
-	//fmt.Println("hashedMsg: ", hex.EncodeToString(hashedMsg[:]))
 	bls.SetFr16(&c, hex.EncodeToString(hashedMsg[:]))
-	//bls.FrFrom32(&c, hashedMsg)
 
 	//fmt.Println("c: ", c.String())
 
@@ -139,7 +133,7 @@ func Contrib(x []byte, dski bls.Fr, dpki bls.G2Point, piDpki vectorcommitment.Pi
 	return W, proof
 }
 
-func VrfyContrib(x []byte, W bls.G1Point, pi *ProofDPRF, VCdpk []byte) bool {
+func VrfyContrib(p *party.HonestParty, i uint32, x []byte, W bls.G1Point, pi *ProofDPRF, VCdpk string) bool {
 	var sha256x bls.Fr
 	var Hx bls.G1Point
 	HxBytes := sha256.Sum256(x)
@@ -147,10 +141,12 @@ func VrfyContrib(x []byte, W bls.G1Point, pi *ProofDPRF, VCdpk []byte) bool {
 	bls.SetFr16(&sha256x, stringSha256x)
 	bls.MulG1(&Hx, &bls.GenG1, &sha256x) //H(x)=g^sha256(x)
 	if !bls.EqualG1(&Hx, &pi.w) {
+		log.Printf("verify DPRF contribution failed: H(x) != w\n")
 		return false
 	}
 
-	if !vectorcommitment.VerifyMerkleTreeProof(VCdpk, pi.piDpki.Path, pi.piDpki.Indicator, bls.ToCompressedG2(&pi.dpki)) {
+	if !p.VC.Verify(VCdpk, *utils.HashG2ToFr(&pi.dpki), int(i), pi.piDpki) {
+		log.Printf("VC verification failed, i=%v\n", i)
 		return false
 	}
 
@@ -167,27 +163,24 @@ func VrfyContrib(x []byte, W bls.G1Point, pi *ProofDPRF, VCdpk []byte) bool {
 
 	var c bls.Fr
 	hashedMsg := sha256.Sum256([]byte(msg))
-	//fmt.Printf("hashedMsg: %v\n", hashedMsg)
-	//fmt.Println("hashedMsg: ", hex.EncodeToString(hashedMsg[:]))
 	bls.SetFr16(&c, hex.EncodeToString(hashedMsg[:]))
-	//bls.FrFrom32(&c, hashedMsg)
 
 	return bls.EqualFr(&c, &pi.c)
 }
 
-func Combine(p *party.HonestParty, f uint32, x []byte, I []bls.Fr, Wi []bls.G1Point, pi []*ProofDPRF, VCdpk []byte) (bls.G1Point, error) {
+func Combine(p *party.HonestParty, f uint32, x []byte, Iuint32 []uint32, IFr []bls.Fr, Wi []bls.G1Point, pi []*ProofDPRF, VCdpk string) (bls.G1Point, error) {
 
-	if uint32(len(I)) < f+1 {
+	if uint32(len(IFr)) < f+1 {
 		return bls.GenG1, errors.New("not enough DPRF contributions")
 	}
 	for i := uint32(0); i < f+1; i++ {
-		if !VrfyContrib(x, Wi[i], pi[i], VCdpk) {
+		if !VrfyContrib(p, Iuint32[i], x, Wi[i], pi[i], VCdpk) {
 			return bls.GenG1, errors.New("invalid contribution")
 		}
 	}
 
 	//interpolate F(x) from {Wi=F_i(x)}, i=0...f
-	res := p.InterpolateComOrWitByKnownIndexes(f, 0, I, Wi)
+	res := p.InterpolateComOrWitByKnownIndexes(f, 0, IFr, Wi)
 	// fmt.Println("tmp: ", tmp.String())
 
 	////return H(F(x))

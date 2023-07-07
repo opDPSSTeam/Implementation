@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 	"github.com/opDPSSTeam/DPSS/pkg/utils"
 
 	kyberbls "github.com/drand/kyber-bls12381"
@@ -24,7 +25,9 @@ func TestGenRecPoly(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
+	vc := pointproofs.New(N)
 	p := party.NewHonestParty(0, N, F, N, ipList, portList, nil, nil, nil, nil, pk, nil, sk[2*F+1])
+	p.SetVC(vc)
 
 	ID := []byte("testShare")
 	//uncomment the block comment in genRecPoly to test
@@ -38,10 +41,12 @@ func TestShare(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
+	vc := pointproofs.New(N)
 
 	var p []*party.HonestParty = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
 		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -104,10 +109,12 @@ func TestCallHelp(t *testing.T) {
 	N := uint32(4)
 	F := uint32(1)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
+	vc := pointproofs.New(N)
 
 	var p []*party.HonestParty = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
 		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -130,10 +137,12 @@ func TestRecContrib(t *testing.T) {
 	N := uint32(7)
 	F := uint32(2)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
+	vc := pointproofs.New(N)
 
 	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
 		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i].SetVC(vc)
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -156,10 +165,11 @@ func TestRecContrib(t *testing.T) {
 	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
-		md, sigd := ShareSend(ctx, p[0], ID, current, F, N, secret)
+		md, sigF := ShareSend(ctx, p[0], ID, current, F, N, secret)
+		mF := append([]byte("finish"), md...)
 
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
-		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
+		err := blsScheme.Verify(p[0].SigPK.Commit(), mF, sigF)
 		if err != nil {
 			log.Printf("error: %v\n", err)
 		} else {
@@ -192,7 +202,7 @@ func TestRecContrib(t *testing.T) {
 			cont := recContrib(p[helperID], ID, F, dealerID, callerID, *p[helperID].GetVShare(dealerID), *p[helperID].GetPiShare(dealerID))
 			input := append(ID, utils.Uint32ToBytes(dealerID)...)
 			input = append(input, utils.Uint32ToBytes(callerID)...)
-			vrf := vrfyRecCont(p[callerID], input, cont)
+			vrf := vrfyRecCont(p[callerID], helperID, input, cont)
 			assert.True(t, vrf, "Verify contribution failed")
 			log.Printf("Party %v has generated a valid RecCont for caller %v\n", i, callerID)
 		}
@@ -207,12 +217,14 @@ func TestRecContrib(t *testing.T) {
 		contList[helperID] = recContrib(p[helperID], ID, F, dealerID, callerID, *p[helperID].GetVShare(dealerID), *p[helperID].GetPiShare(dealerID))
 	}
 
+	IdxUintList := make([]uint32, N)
 	IdxList := make([]bls.Fr, F+1)
 	smList := make([]bls.Fr, F+1)
 	DPRFContribList := make([]bls.G1Point, F+1)
 	piDPRFList := make([]*dprf.ProofDPRF, F+1)
 
 	for i := uint32(0); i < F+1; i++ {
+		IdxUintList[i] = i
 		bls.AsFr(&IdxList[i], uint64(i+1))
 		bls.CopyFr(&smList[i], &contList[i].sMasked)
 		bls.CopyG1(&DPRFContribList[i], &contList[i].DPRFContribF)
@@ -226,8 +238,8 @@ func TestRecContrib(t *testing.T) {
 
 	input := append(ID, utils.Uint32ToBytes(dealerID)...)
 	input = append(input, utils.Uint32ToBytes(callerID)...)
-	FdG1, _ := dprf.Combine(p[callerID], F, input, IdxList, DPRFContribList, piDPRFList, p[callerID].GetPiShare(dealerID).PrfRec.VCdpk)
-	Fd := utils.HashG1ToFr(&FdG1)
+	FdG1, _ := dprf.Combine(p[callerID], F, input, IdxUintList, IdxList, DPRFContribList, piDPRFList, p[callerID].GetPiShare(dealerID).PrfRec.VCdpk)
+	Fd := (*bls.Fr)(utils.HashG1ToFr(&FdG1))
 	bls.SubModFr(&sRec, &smi, Fd)
 
 	log.Printf("original share: %v\n", originalShare.String())
@@ -242,10 +254,12 @@ func TestRecover(t *testing.T) {
 	N := uint32(7)
 	F := uint32(2)
 	sk, pk := party.SigKeyGen(N, 2*F+1) // wrong usage, but it doesn't matter here
+	vc := pointproofs.New(N)
 
 	var p = make([]*party.HonestParty, N)
 	for i := uint32(0); i < N; i++ {
 		p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, nil, nil, pk, nil, sk[i])
+		p[i].VC = vc
 	}
 
 	for i := uint32(0); i < N; i++ {
@@ -268,10 +282,11 @@ func TestRecover(t *testing.T) {
 	wg.Add(int(N) + 1)
 	//let p[0] be the dealer
 	go func() {
-		md, sigd := ShareSend(ctx, p[0], ID, current, F, N, secret)
+		md, sigF := ShareSend(ctx, p[0], ID, current, F, N, secret)
+		mF := append([]byte("finish"), md...)
 
 		blsScheme := blsSig.NewSchemeOnG1(kyberbls.NewBLS12381Suite())
-		err := blsScheme.Verify(p[0].SigPK.Commit(), md, sigd)
+		err := blsScheme.Verify(p[0].SigPK.Commit(), mF, sigF)
 		if err != nil {
 			log.Printf("error: %v\n", err)
 		} else {

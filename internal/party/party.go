@@ -12,7 +12,6 @@ import (
 	"github.com/opDPSSTeam/DPSS/internal/polycommit"
 	"github.com/opDPSSTeam/DPSS/pkg/pointproofs"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
-	"github.com/opDPSSTeam/DPSS/pkg/vectorcommitment"
 )
 
 //Party is a interface of consensus parties
@@ -25,9 +24,9 @@ type Party interface {
 type ProofRec struct {
 	Dpki   bls.G2Point
 	PCdsk  bls.G1Point
-	VCdpk  []byte
+	VCdpk  string
 	Wdski  bls.G1Point
-	PiDpki vectorcommitment.PiVcomMerkle
+	PiDpki string
 	PCphi  []bls.G1Point
 	Wphi   []bls.G1Point
 }
@@ -67,13 +66,13 @@ type PiShare struct {
 	Wvssi  bls.G1Point
 	PCz    bls.G1Point
 	Wz0    bls.G1Point
-	VCvs   []byte
-	PiVs   vectorcommitment.PiVcomMerkle
+	VCvs   string
+	PiVs   string
 	PrfRec ProofRec
 }
 
-func NewPiShare(Gs bls.G1Point, PCvss bls.G1Point, wvssi bls.G1Point, PCz bls.G1Point, wz0 bls.G1Point, VCvs []byte, piVs vectorcommitment.PiVcomMerkle, piRec ProofRec) *PiShare {
-	return &PiShare{Gs, PCvss, wvssi, PCz, wz0, VCvs, piVs, piRec}
+func NewPiShare(Gs bls.G1Point, PCvss bls.G1Point, wvssi bls.G1Point, PCz bls.G1Point, wz0 bls.G1Point, VCvs string, piVs string, proofRec ProofRec) *PiShare {
+	return &PiShare{Gs, PCvss, wvssi, PCz, wz0, VCvs, piVs, proofRec}
 }
 
 // func printPiShare(p *piShare) {
