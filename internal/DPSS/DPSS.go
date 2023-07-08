@@ -84,12 +84,12 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 		}(i)
 	}
 
-	vcom := make([]bls.G1Point, N)
+	vOld := make([]bls.G1Point, N)
 	vg := make([]bls.G1Point, F+1)
 	index := make([]bls.Fr, F+1)
 	ctr := uint32(0)
-	getVComChan := make(chan bool, 1)
-	ifGetVCom := false
+	getVOldChan := make(chan bool, 1)
+	ifGetVOld := false
 	isInterpolated := false
 
 	//wait for commitment pieces from old parties
@@ -120,13 +120,13 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 					ctr++
 					if ctr > F {
 						for i := uint32(0); i < N; i++ {
-							vcom[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, index, vg)
+							vOld[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, index, vg)
 						}
-						p.SetVCom(vcom)
+						p.SetVCom(vOld)
 						Gs := p.InterpolateComOrWitByKnownIndexes(F, 0, index, vg)
 						p.SetGs(&Gs)
 						log.Printf("[DPSS Commit] [New Party %v] interpolate the commitments to all old shares done\n", p.PID)
-						getVComChan <- true
+						getVOldChan <- true
 						isInterpolated = true
 					}
 				}
@@ -167,8 +167,8 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 
 					Gsi := parseGsi(DpssProofMsg.M)
 					//wait for the interpolation of all old shares' commitments
-					if !ifGetVCom {
-						ifGetVCom = <-getVComChan
+					if !ifGetVOld {
+						ifGetVOld = <-getVOldChan
 					}
 					if !bls.EqualG1(Gsi, &p.VCom[m.Sender]) {
 						log.Printf("[DPSS Verify] [New Party %v] verify DpssProof from [Old Party %v] error: Gsi != VCom[%v], Gsi = %s, VCom[%v] = %s\n", p.PID, m.Sender, m.Sender, Gsi.String(), m.Sender, p.VCom[m.Sender].String())
@@ -257,7 +257,7 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	newShare := refreshedPoly[0]
 	log.Printf("[DPSS Recover] [New Party %v] refresh done\n", p.PID)
 
-	GenNewCom(ctx, p, ID, F, N, newShare, Shelp, I)
+	GenNewCom(p, ID, F, N, newShare, Shelp, I)
 	p.DpssNewEnd = time.Now()
 	return newShare
 }
@@ -310,7 +310,7 @@ func parseGsi(m []byte) *bls.G1Point {
 	return Gsi
 }
 
-func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N uint32, newShare bls.Fr, Shelp []uint32, MVBAOutput []uint32) {
+func GenNewCom(p *party.HonestParty, ID []byte, F uint32, N uint32, newShare bls.Fr, Shelp []uint32, MVBAOutput []uint32) {
 	endSignal := make(chan bool, 1)
 	var Gsi bls.G1Point
 	bls.MulG1(&Gsi, &bls.GenG1, &newShare)
@@ -332,6 +332,43 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 		return
 	}
 	log.Printf("[DPSS GenNewCom] [New Party %v] broadcast NewCom\n", p.PID)
+
+	//wait to help others
+	go func() {
+		AuxLen := len(MVBAOutput) - len(Shelp)
+		var AuxMsg = new(protobuf.Aux)
+		if AuxLen > 0 {
+			Ii := substractSet(MVBAOutput, Shelp)
+			AuxMsg.Cont = make([]*protobuf.AuxCont, AuxLen)
+			var tmpGs bls.G1Point
+			for index, k := range Ii {
+				AuxMsg.Cont[index] = new(protobuf.AuxCont)
+				AuxMsg.Cont[index].K = k
+				bls.MulG1(&tmpGs, &bls.GenG1, &p.GetVShare(k).S)
+				AuxMsg.Cont[index].Gs = bls.ToCompressedG1(&tmpGs)
+				AuxMsg.Cont[index].VCvs = p.GetPiShare(k).VCvs
+				AuxMsg.Cont[index].PiVs = p.GetPiShare(k).PiVs
+			}
+		}
+
+		for {
+			m := <-p.GetMessage("DpssErr", ID)
+			// AuxLen == 0 means it cannot help others
+			if AuxLen > 0 {
+				data, err = proto.Marshal(AuxMsg)
+				if err != nil {
+					log.Printf("[DPSS GenNewCom] [New Party %v] marshal Aux error: %v\n", p.PID, err)
+					return
+				}
+				err = p.Send(&protobuf.Message{
+					Type:   "Aux",
+					Id:     ID,
+					Sender: p.PID,
+					Data:   data,
+				}, m.Sender)
+			}
+		}
+	}()
 
 	var newComCtr = uint32(0)
 	newComList := make([]bls.G1Point, F+1)
@@ -479,43 +516,6 @@ func GenNewCom(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N
 			}
 		}
 	}
-
-	//wait to help others
-	go func() {
-		AuxLen := len(MVBAOutput) - len(Shelp)
-		var AuxMsg = new(protobuf.Aux)
-		if AuxLen > 0 {
-			Ii := substractSet(MVBAOutput, Shelp)
-			AuxMsg.Cont = make([]*protobuf.AuxCont, AuxLen)
-			var tmpGs bls.G1Point
-			for index, k := range Ii {
-				AuxMsg.Cont[index] = new(protobuf.AuxCont)
-				AuxMsg.Cont[index].K = k
-				bls.MulG1(&tmpGs, &bls.GenG1, &p.GetVShare(k).S)
-				AuxMsg.Cont[index].Gs = bls.ToCompressedG1(&tmpGs)
-				AuxMsg.Cont[index].VCvs = p.GetPiShare(k).VCvs
-				AuxMsg.Cont[index].PiVs = p.GetPiShare(k).PiVs
-			}
-		}
-
-		for {
-			m := <-p.GetMessage("DpssErr", ID)
-			// AuxLen == 0 means it cannot help others
-			if AuxLen > 0 {
-				data, err = proto.Marshal(AuxMsg)
-				if err != nil {
-					log.Printf("[DPSS GenNewCom] [New Party %v] marshal Aux error: %v\n", p.PID, err)
-					return
-				}
-				err = p.Send(&protobuf.Message{
-					Type:   "Aux",
-					Id:     ID,
-					Sender: p.PID,
-					Data:   data,
-				}, m.Sender)
-			}
-		}
-	}()
 
 	//wait for the end signal
 	<-endSignal
