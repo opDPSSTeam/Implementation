@@ -188,7 +188,7 @@ message wpAcssHelp{
 
 //Dpss
 message DpssCom{
-  bytes Cold = 1;
+  bytes VCold = 1;
   bytes Gsi = 2;
   PiVcomMerkle piOld = 3;
 }
