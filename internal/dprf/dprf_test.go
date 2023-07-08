@@ -57,11 +57,13 @@ func TestDPRF(t *testing.T) {
 	}
 
 	//test Combine()
-	index := make([]bls.Fr, N)
+	indexFr := make([]bls.Fr, N)
+	indexUint := make([]uint32, N)
 	for i := uint32(0); i < N; i++ {
-		bls.AsFr(&index[i], uint64(i+1))
+		indexUint[i] = i
+		bls.AsFr(&indexFr[i], uint64(i+1))
 	}
-	v1, err := Combine(p, F, x, index[:F+1], W[:F+1], pi[:F+1], VCdpk)
+	v1, err := Combine(p, F, x, indexUint[:F+1], indexFr[:F+1], W[:F+1], pi[:F+1], VCdpk)
 	if err != nil {
 		fmt.Printf("error while combining: %s\n", err)
 		t.Errorf("DPRF combine failed")

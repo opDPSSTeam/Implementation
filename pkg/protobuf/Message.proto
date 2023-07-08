@@ -186,7 +186,7 @@ message wpAcssHelp{
 
 //Dpss
 message DpssCom{
-  bytes Cold = 1;
+  string VCold = 1;
   bytes Gsi = 2;
   string piOld = 3;
 }
@@ -217,8 +217,8 @@ message Err{
 message AuxCont{
   uint32 k = 1;
   bytes Gs = 2;
-  bytes Cvcom = 3;
-  string piVcom = 4;
+  string VCvs = 3;
+  string piVs = 4;
 }
 
 message Aux{

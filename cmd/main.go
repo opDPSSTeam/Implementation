@@ -89,6 +89,7 @@ func main() {
 			defer f.Close()
 			fmt.Fprintf(f, "DpssOldStart, %v\n", p.DpssOldStart.UnixNano())
 			fmt.Fprintf(f, "DpssOldEnd, %v\n", p.DpssOldEnd.UnixNano())
+			fmt.Fprintf(f, "DpssOldDelta, %v\n", p.DpssOldEnd.UnixNano()-p.DpssOldStart.UnixNano())
 
 			time.Sleep(2000 * time.Second)
 		case "new":
@@ -125,6 +126,7 @@ func main() {
 			defer f.Close()
 			fmt.Fprintf(f, "DpssNewStart, %v\n", p.DpssNewStart.UnixNano())
 			fmt.Fprintf(f, "DpssNewEnd, %v\n", p.DpssNewEnd.UnixNano())
+			fmt.Fprintf(f, "DpssNewDelta, %v\n", p.DpssNewEnd.UnixNano()-p.DpssNewStart.UnixNano())
 
 			time.Sleep(2000 * time.Second)
 		}
