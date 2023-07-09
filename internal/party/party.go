@@ -4,10 +4,7 @@ import (
 	"sync"
 	"time"
 
-	kyberbls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/share"
-	"github.com/drand/kyber/sign"
-	"github.com/drand/kyber/sign/tbls"
 	"github.com/opDPSSTeam/DPSS/internal/bls"
 	"github.com/opDPSSTeam/DPSS/internal/polycommit"
 	"github.com/opDPSSTeam/DPSS/pkg/protobuf"
@@ -132,10 +129,10 @@ type HonestParty struct {
 	shareTuples []VPiTuple    //v-pi tuples from other nodes
 	VCom        []bls.G1Point //commitments of all shares
 
-	TblsScheme sign.ThresholdScheme
-	SigPK      *share.PubPoly  //tss pk of current committee
-	SigSK      *share.PriShare //tss sk of current committee
-	SigPKNew   *share.PubPoly  //tss pk of next (new) committee
+	// TblsScheme sign.ThresholdScheme
+	SigPK    *share.PubPoly  //tss pk of current committee
+	SigSK    *share.PriShare //tss sk of current committee
+	SigPKNew *share.PubPoly  //tss pk of next (new) committee
 
 	LagrangeCoefficients [][]bls.Fr //lagrange coefficients when using f(1),f(2),...,f(2t+1) to calculate f(k) for 0 <= k <= 3*f+1.Indices start from 0
 
@@ -147,8 +144,8 @@ type HonestParty struct {
 
 //NewHonestParty return a new honest party object
 func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, portList []string, ipListOld []string, portListOld []string, ipListNext []string, portListNext []string, sigPK *share.PubPoly, sigPKNew *share.PubPoly, sigSK *share.PriShare) *HonestParty {
-	var SysSuite = kyberbls.NewBLS12381Suite()
-	tblsScheme := tbls.NewThresholdSchemeOnG1(SysSuite)
+	// var SysSuite = kyberbls.NewBLS12381Suite()
+	// tblsScheme := tbls.NewThresholdSchemeOnG1(SysSuite)
 
 	secretG1, secretG2 := polycommit.GenerateTestingSetup("46015081477078601964787943834255776126696019968430095991502055467779756761969", uint64(F+1))
 	KZG := polycommit.NewKZGSettings(nil, secretG1, secretG2)
@@ -183,10 +180,10 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 		sendToNextChannels: make([]chan *protobuf.Message, N),
 		sendToOldChannels:  make([]chan *protobuf.Message, N),
 
-		TblsScheme: tblsScheme,
-		SigPK:      sigPK,
-		SigSK:      sigSK,
-		SigPKNew:   sigPKNew,
+		// TblsScheme: tblsScheme,
+		SigPK:    sigPK,
+		SigSK:    sigSK,
+		SigPKNew: sigPKNew,
 
 		KZG:      KZG,
 		MutexKZG: &mutexKZG,
