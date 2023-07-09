@@ -442,7 +442,7 @@ func GenNewCom(p *party.HonestParty, ID []byte, F uint32, N uint32, newShare bls
 				continue
 			}
 
-			isValid, kList, kGsList := verifyAux(p, Auxmsg)
+			isValid, kList, kGsList := verifyAux(p, Auxmsg, m.Sender)
 			if !isValid {
 				log.Printf("[DPSS GenNewCom] [New Party %v] receive invalid Aux message from [New Party %v]\n", p.PID, m.Sender)
 				continue
@@ -522,18 +522,18 @@ func GenNewCom(p *party.HonestParty, ID []byte, F uint32, N uint32, newShare bls
 
 }
 
-func verifyAux(p *party.HonestParty, AuxMsg *protobuf.Aux) (bool, []uint32, []bls.G1Point) {
+func verifyAux(p *party.HonestParty, AuxMsg *protobuf.Aux, senderID uint32) (bool, []uint32, []bls.G1Point) {
 	kList := make([]uint32, 0)
 	GsList := make([]bls.G1Point, 0)
 	for i := 0; i < len(AuxMsg.Cont); i++ {
 		Gs, _ := bls.FromCompressedG1(AuxMsg.Cont[i].Gs)
 		GsFr := utils.HashG1ToFr(Gs)
-		if !p.VC.Verify(AuxMsg.Cont[i].VCvs, *GsFr, i, AuxMsg.Cont[i].PiVs) {
+		if !p.VC.Verify(AuxMsg.Cont[i].VCvs, *GsFr, int(senderID), AuxMsg.Cont[i].PiVs) {
 			kList = append(kList, AuxMsg.Cont[i].K)
 			tmpGs, _ := bls.FromCompressedG1(AuxMsg.Cont[i].Gs)
 			GsList = append(GsList, *tmpGs)
 		} else {
-			return false, []uint32{0}, []bls.G1Point{}
+			return false, []uint32{}, []bls.G1Point{}
 		}
 	}
 	return true, kList, GsList
