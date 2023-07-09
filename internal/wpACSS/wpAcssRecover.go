@@ -63,9 +63,9 @@ func Help(p *party.HonestParty, ID []byte, F uint32) {
 		err := proto.Unmarshal(m.Data, &msgCallHelp)
 		if err != nil {
 			log.Printf("[DPSS Recover] [New Part %v] receive wpAcssCallHelp error: %v\n", p.PID, err)
-		} else {
-			log.Printf("[DPSS Recover] [New Party %v] receive WpAcssCallHelp from [New Party %v]\n", p.PID, msgCallHelp.Caller)
-		}
+		} //else {
+		// 	log.Printf("[DPSS Recover] [New Party %v] receive WpAcssCallHelp from [New Party %v]\n", p.PID, msgCallHelp.Caller)
+		// }
 
 		Shelp := msgCallHelp.Indices
 
