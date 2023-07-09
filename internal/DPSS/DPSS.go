@@ -209,7 +209,8 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 
 		/* You may set Shelp=I to test wpACSS.Recover.
 		To achieve this, you may remove the "!" before p.IfReceivedVPiTuples */
-		if !p.IfReceivedVPiTuples(I[i]) {
+		//we force the share recovery in mani-pess
+		if p.IfReceivedVPiTuples(I[i]) {
 			Shelp = append(Shelp, I[i])
 		}
 
@@ -335,6 +336,8 @@ func GenNewCom(p *party.HonestParty, ID []byte, F uint32, N uint32, newShare bls
 
 	//wait to help others
 	go func() {
+		//we set Shelp to empty to ensure every node can participate in the pessimistic case of GenNewCom. (Otherwise, no one can generate the Aux message, because we force the Shelp to be the exactly same set as MVBAOutput)
+		Shelp = []uint32{}
 		AuxLen := len(MVBAOutput) - len(Shelp)
 		var AuxMsg = new(protobuf.Aux)
 		if AuxLen > 0 {
@@ -390,7 +393,8 @@ func GenNewCom(p *party.HonestParty, ID []byte, F uint32, N uint32, newShare bls
 
 	newGs := p.InterpolateComOrWitByKnownIndexes(F, 0, newComIndex, newComList)
 	//you may add a "!" operation before bls.EqualG1 to test the pessmistic path
-	if bls.EqualG1(&newGs, &p.Gs) {
+	//we force the pessimistic case in main-pess
+	if !bls.EqualG1(&newGs, &p.Gs) {
 		log.Printf("[DPSS GenNewCom] [New Party %v] enter the optimistic path\n", p.PID)
 		vNew := make([]bls.G1Point, N)
 		for i := uint32(0); i < N; i++ {
