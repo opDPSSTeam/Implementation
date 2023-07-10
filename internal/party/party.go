@@ -136,6 +136,7 @@ type HonestParty struct {
 
 	LagrangeCoefficients [][]bls.Fr //lagrange coefficients when using f(1),f(2),...,f(2t+1) to calculate f(k) for 0 <= k <= 3*f+1.Indices start from 0
 
+	IsStarted    bool
 	DpssOldStart time.Time
 	DpssOldEnd   time.Time
 	DpssNewStart time.Time
@@ -198,6 +199,8 @@ func NewHonestParty(e uint32, N uint32, F uint32, pid uint32, ipList []string, p
 		VCom:        make([]bls.G1Point, N),
 
 		LagrangeCoefficients: LagrangeCoefficients,
+
+		IsStarted: false,
 	}
 	return &p
 }
