@@ -75,7 +75,7 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 //DpssNew is the new party's procedures in DPSS
 func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N uint32) bls.Fr {
 
-	p.DpssNewStart = time.Now()
+	// p.DpssNewStart = time.Now()
 
 	//start wpACSS instances to receive shares from old parties
 	for i := uint32(0); i < N; i++ {
@@ -99,6 +99,10 @@ func DpssNew(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 			case <-ctx.Done():
 				return
 			case m := <-p.GetMessage("DpssCom", ID):
+				if !p.IsStarted {
+					p.IsStarted = true
+					p.DpssNewStart = time.Now()
+				}
 				if !isInterpolated {
 					var DpssComMsg protobuf.DpssCom
 					err := proto.Unmarshal(m.Data, &DpssComMsg)

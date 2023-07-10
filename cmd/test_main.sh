@@ -17,13 +17,13 @@ echo "protocol start"
 # start threads representing nodes in the currentCommitee
 for i in `seq 0 $(($COUNTER-1))`;
 do
-  go run main.go -n $COUNTER -f $FAULT -op1 2 -op2 old -id $i -mp metadata -lp list -t1 2 -t2 5&
+  go run main.go -n $COUNTER -f $FAULT -op1 2 -op2 old -id $i -mp metadata -lp list -t1 1 -t2 2&
   echo "old node $i established"
 done
 # start threads representing nodes in the newCommitee
 for i in `seq 0 $(($COUNTER-1))`;
 do
-  go run main.go -n $COUNTER -f $FAULT -op1 2 -op2 new -id $i -mp metadata -lp list -t1 2 -t2 5&
+  go run main.go -n $COUNTER -f $FAULT -op1 2 -op2 new -id $i -mp metadata -lp list -t1 1 -t2 2&
   echo "new node $i established"
 done
 
