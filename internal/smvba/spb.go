@@ -49,12 +49,12 @@ func spbReceiver(ctx context.Context, p *party.HonestParty, sender uint32, ID []
 	_, _, ok1 := pb.Receiver(ctx, p, sender, ID1, validator1)
 
 	if !ok1 {
-		log.Printf("[MVBA] [Party %v] First round of PB fails\n", p.PID)
+		log.Printf("[MVBA] [Party %v] First round of PB is cancelled or failed\n", p.PID)
 		return nil, nil, false
 	}
 	value, sig, ok2 := pb.Receiver(ctx, p, sender, ID2, validator2)
 	if !ok2 {
-		log.Printf("[MVBA] [Party %v] Second round of PB fails\n", p.PID)
+		log.Printf("[MVBA] [Party %v] Second round of PB is cancelled or failed\n", p.PID)
 		return nil, nil, false
 	}
 
