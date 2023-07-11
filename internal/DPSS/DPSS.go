@@ -406,134 +406,134 @@ func GenNewCom(p *party.HonestParty, ID []byte, F uint32, N uint32, newShare bls
 		newComCtr++
 	}
 
-	newGs := p.InterpolateComOrWitByKnownIndexes(F, 0, newComIndex, newComList)
+	p.InterpolateComOrWitByKnownIndexes(F, 0, newComIndex, newComList)
 	//you may add a "!" operation before bls.EqualG1 to test the pessmistic path
 	//we force the pessimistic case in main-pess
-	if !bls.EqualG1(&newGs, &p.Gs) {
-		log.Printf("[DPSS GenNewCom] [New Party %v] enter the optimistic path\n", p.PID)
-		vNew := make([]bls.G1Point, N)
-		for i := uint32(0); i < N; i++ {
-			vNew[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, newComIndex, newComList)
-		}
-		log.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (optimistic path)\n", p.PID)
-		p.SetVCom(vNew)
-		endSignal <- true
-	} else {
-		log.Printf("[DPSS GenNewCom] [New Party %v] enter the pessimistic path\n", p.PID)
+	// if !bls.EqualG1(&newGs, &p.Gs) {
+	// 	log.Printf("[DPSS GenNewCom] [New Party %v] enter the optimistic path\n", p.PID)
+	// 	vNew := make([]bls.G1Point, N)
+	// 	for i := uint32(0); i < N; i++ {
+	// 		vNew[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, newComIndex, newComList)
+	// 	}
+	// 	log.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (optimistic path)\n", p.PID)
+	// 	p.SetVCom(vNew)
+	// 	endSignal <- true
+	// } else {
+	log.Printf("[DPSS GenNewCom] [New Party %v] enter the pessimistic path\n", p.PID)
 
-		//multicast ERROR
-		var msgError = new(protobuf.Err)
-		msgError.Err = []byte("e")
-		data, err = proto.Marshal(msgError)
+	//multicast ERROR
+	var msgError = new(protobuf.Err)
+	msgError.Err = []byte("e")
+	data, err = proto.Marshal(msgError)
+	if err != nil {
+		log.Printf("[DPSS GenNewCom] [New Party %v] marshal Err error: %v\n", p.PID, err)
+		return
+	}
+	err = p.Broadcast(&protobuf.Message{
+		Type:   "DpssErr",
+		Id:     ID,
+		Sender: p.PID,
+		Data:   data,
+	})
+	if err != nil {
+		log.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr error: %v\n", p.PID, err)
+		return
+	}
+	log.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr\n", p.PID)
+
+	//wait for Aux messages. Pj is the sender, who sends the commitments to s_k,j
+	kGsMap := make(map[uint32][]bls.G1Point) //maps the sender of Aux message to the Gs elements in it
+	newGsMap := make(map[uint32]bls.G1Point) //records the interpolated new Gs
+	newGsCtr := uint32(0)
+	vNew := make([]bls.G1Point, N)
+
+	jListMap := make(map[uint32][]uint32)    //maps k to received j
+	jGsMap := make(map[uint32][]bls.G1Point) //maps k to received Gsj
+	jCtrMap := make(map[uint32]uint32)       //maps k to the number of received Gsj
+	jMissingMap := make(map[uint32][]uint32) //maps j to the missing k
+
+	for {
+		m := <-p.GetMessage("Aux", ID)
+		var Auxmsg = new(protobuf.Aux)
+		err := proto.Unmarshal(m.Data, Auxmsg)
 		if err != nil {
-			log.Printf("[DPSS GenNewCom] [New Party %v] marshal Err error: %v\n", p.PID, err)
-			return
+			log.Printf("[DPSS GenNewCom] [New Party %v] parse Aux error: %v\n", p.PID, err)
+			continue
 		}
-		err = p.Broadcast(&protobuf.Message{
-			Type:   "DpssErr",
-			Id:     ID,
-			Sender: p.PID,
-			Data:   data,
-		})
-		if err != nil {
-			log.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr error: %v\n", p.PID, err)
-			return
+
+		isValid, kList, kGsList := verifyAux(Auxmsg)
+		if !isValid {
+			log.Printf("[DPSS GenNewCom] [New Party %v] receive invalid Aux message from [New Party %v]\n", p.PID, m.Sender)
+			continue
 		}
-		log.Printf("[DPSS GenNewCom] [New Party %v] broadcast DpssErr\n", p.PID)
+		kGsMap[m.Sender] = kGsList
 
-		//wait for Aux messages. Pj is the sender, who sends the commitments to s_k,j
-		kGsMap := make(map[uint32][]bls.G1Point) //maps the sender of Aux message to the Gs elements in it
-		newGsMap := make(map[uint32]bls.G1Point) //records the interpolated new Gs
-		newGsCtr := uint32(0)
-		vNew := make([]bls.G1Point, N)
-
-		jListMap := make(map[uint32][]uint32)    //maps k to received j
-		jGsMap := make(map[uint32][]bls.G1Point) //maps k to received Gsj
-		jCtrMap := make(map[uint32]uint32)       //maps k to the number of received Gsj
-		jMissingMap := make(map[uint32][]uint32) //maps j to the missing k
-
-		for {
-			m := <-p.GetMessage("Aux", ID)
-			var Auxmsg = new(protobuf.Aux)
-			err := proto.Unmarshal(m.Data, Auxmsg)
-			if err != nil {
-				log.Printf("[DPSS GenNewCom] [New Party %v] parse Aux error: %v\n", p.PID, err)
-				continue
+		// if there are sufficient elements in Aux message from Pj (i.e., Pj has no missing shares), interpolate the new Gs
+		if uint32(len(kList)) > F {
+			var kListFr = make([]bls.Fr, F+1)
+			for i := uint32(0); i < F+1; i++ {
+				bls.AsFr(&kListFr[i], uint64(kList[i]+1))
 			}
+			newGsMap[m.Sender] = p.InterpolateComOrWitByKnownIndexes(F, 0, kListFr, kGsList)
+			newGsCtr++
+		} else {
+			// record the missing k
+			jMissingMap[m.Sender] = substractSet(MVBAOutput, kList)
+		}
 
-			isValid, kList, kGsList := verifyAux(Auxmsg)
-			if !isValid {
-				log.Printf("[DPSS GenNewCom] [New Party %v] receive invalid Aux message from [New Party %v]\n", p.PID, m.Sender)
-				continue
+		// record the received j and Gs_k,j for each k
+		for index, k := range kList {
+			if _, ok := jListMap[k]; !ok {
+				jListMap[k] = make([]uint32, 0)
+				jGsMap[k] = make([]bls.G1Point, 0)
+				jCtrMap[k] = 0
 			}
-			kGsMap[m.Sender] = kGsList
+			jListMap[k] = append(jListMap[k], m.Sender)
+			jGsMap[k] = append(jGsMap[k], kGsList[index])
+			jCtrMap[k]++
 
-			// if there are sufficient elements in Aux message from Pj (i.e., Pj has no missing shares), interpolate the new Gs
-			if uint32(len(kList)) > F {
-				var kListFr = make([]bls.Fr, F+1)
-				for i := uint32(0); i < F+1; i++ {
-					bls.AsFr(&kListFr[i], uint64(kList[i]+1))
-				}
-				newGsMap[m.Sender] = p.InterpolateComOrWitByKnownIndexes(F, 0, kListFr, kGsList)
-				newGsCtr++
-			} else {
-				// record the missing k
-				jMissingMap[m.Sender] = substractSet(MVBAOutput, kList)
-			}
-
-			// record the received j and Gs_k,j for each k
-			for index, k := range kList {
-				if _, ok := jListMap[k]; !ok {
-					jListMap[k] = make([]uint32, 0)
-					jGsMap[k] = make([]bls.G1Point, 0)
-					jCtrMap[k] = 0
-				}
-				jListMap[k] = append(jListMap[k], m.Sender)
-				jGsMap[k] = append(jGsMap[k], kGsList[index])
-				jCtrMap[k]++
-
-				//check if there are enough Gs_k,* to interpolate Gs_k,j
-				if jCtrMap[k] == F+1 {
-					for j, missingList := range jMissingMap {
-						if containsUint32(missingList, k) {
-							//interpolate at j
-							indexList := make([]bls.Fr, F+1)
-							GsList := jGsMap[k]
-							ctr := 0
-							for _, sender := range jListMap[k] {
-								if sender != j {
-									bls.AsFr(&indexList[ctr], uint64(sender+1))
-									ctr++
-								}
+			//check if there are enough Gs_k,* to interpolate Gs_k,j
+			if jCtrMap[k] == F+1 {
+				for j, missingList := range jMissingMap {
+					if containsUint32(missingList, k) {
+						//interpolate at j
+						indexList := make([]bls.Fr, F+1)
+						GsList := jGsMap[k]
+						ctr := 0
+						for _, sender := range jListMap[k] {
+							if sender != j {
+								bls.AsFr(&indexList[ctr], uint64(sender+1))
+								ctr++
 							}
-							newGsMap[j] = p.InterpolateComOrWitByKnownIndexes(F, j+1, indexList, GsList)
-							newGsCtr++
 						}
+						newGsMap[j] = p.InterpolateComOrWitByKnownIndexes(F, j+1, indexList, GsList)
+						newGsCtr++
 					}
 				}
-			}
-
-			if newGsCtr > F {
-				log.Printf("[DPSS GenNewCom] [New Party %v] receive enough new Gs, newGsCtr=%v\n", p.PID, newGsCtr)
-				indexList := make([]bls.Fr, N)
-				newGsList := make([]bls.G1Point, N)
-				ctr := 0
-				for i := uint32(0); i < N; i++ {
-					if newGs, ok := newGsMap[i]; ok {
-						bls.AsFr(&indexList[ctr], uint64(i+1))
-						bls.CopyG1(&newGsList[ctr], &newGs)
-						ctr++
-					}
-				}
-				for i := uint32(0); i < N; i++ {
-					vNew[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, indexList[:F+1], newGsList[:F+1])
-				}
-				log.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (pessimistic path)\n", p.PID)
-				p.SetVCom(vNew)
-				endSignal <- true
-				break
 			}
 		}
+
+		if newGsCtr > F {
+			log.Printf("[DPSS GenNewCom] [New Party %v] receive enough new Gs, newGsCtr=%v\n", p.PID, newGsCtr)
+			indexList := make([]bls.Fr, N)
+			newGsList := make([]bls.G1Point, N)
+			ctr := 0
+			for i := uint32(0); i < N; i++ {
+				if newGs, ok := newGsMap[i]; ok {
+					bls.AsFr(&indexList[ctr], uint64(i+1))
+					bls.CopyG1(&newGsList[ctr], &newGs)
+					ctr++
+				}
+			}
+			for i := uint32(0); i < N; i++ {
+				vNew[i] = p.InterpolateComOrWitByKnownIndexes(F, i+1, indexList[:F+1], newGsList[:F+1])
+			}
+			log.Printf("[DPSS GenNewCom] [New Party %v] interpolate the commitments to all new shares (pessimistic path)\n", p.PID)
+			p.SetVCom(vNew)
+			endSignal <- true
+			break
+		}
+		// }
 	}
 
 	//wait for the end signal
