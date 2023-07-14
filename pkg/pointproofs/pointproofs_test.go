@@ -14,7 +14,7 @@ import (
 
 func TestVC(t *testing.T) {
 	var n uint32
-	for f := uint32(1); f < 22; f++ {
+	for f := uint32(1); f < 42; f++ {
 		n = 3*f + 1
 		var messages []kbls.Fr
 		var messagesG1 []bls.G1Point
