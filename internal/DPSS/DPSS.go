@@ -68,6 +68,7 @@ func DpssOld(ctx context.Context, p *party.HonestParty, ID []byte, F uint32, N u
 	log.Printf("[DPSS Reshare] [Old Party %v] multicast DpssProof done\n", p.PID)
 
 	p.DpssOldEnd = time.Now()
+	time.Sleep(20 * time.Second)
 }
 
 //DpssNew is the new party's procedures in DPSS

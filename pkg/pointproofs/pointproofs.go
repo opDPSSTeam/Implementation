@@ -14,7 +14,7 @@ import (
 	kbls "github.com/kilic/bls12-381"
 )
 
-const MaxLength = 64
+const MaxLength = 127
 
 type VectorCommit struct {
 	index int
