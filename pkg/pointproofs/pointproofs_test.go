@@ -10,7 +10,7 @@ import (
 
 func TestVC(t *testing.T) {
 	var len int
-	for i := 1; i < 22; i++ {
+	for i := 1; i < 43; i++ {
 		len = 3*i + 1
 		var messages []kbls.Fr
 		for i := 0; i < len; i++ {
