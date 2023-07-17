@@ -276,13 +276,16 @@ func BenchmarkDpss(b *testing.B) {
 
 			sk, pk := party.SigKeyGen(N, 2*F+1)
 			skNew, pkNew := party.SigKeyGen(N, 2*F+1)
+			vc := pointproofs.New(N)
 
 			var p = make([]*party.HonestParty, N)
 			var pNext = make([]*party.HonestParty, N)
 
 			for i := uint32(0); i < N; i++ {
 				p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i])
+				p[i].SetVC(vc)
 				pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i])
+				pNext[i].SetVC(vc)
 			}
 
 			for i := uint32(0); i < N; i++ {
