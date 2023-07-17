@@ -3,6 +3,8 @@ package dpss
 import (
 	"context"
 	"fmt"
+	"log"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -221,4 +223,121 @@ func TestReconstruct(t *testing.T) {
 	poly := polyring.LagrangeInterpolate(F, pos[:F+2], newShares[:F+2])
 	fmt.Println("poly: ", party.PolyToString(poly))
 	assert.True(t, bls.EqualFr(&secret, &poly[0]), "Reconstruct secret from the newshares fail")
+}
+
+var tableF = []struct {
+	F uint32
+}{
+	{F: 1},
+	{F: 2},
+	{F: 5},
+	{F: 10},
+}
+
+func genIpList(N uint32) []string {
+	ipList := make([]string, N)
+	for i := uint32(0); i < N; i++ {
+		ipList[i] = "127.0.0.1"
+	}
+	return ipList
+}
+
+func genPortList(start uint32, N uint32) []string {
+	portList := make([]string, N)
+	for i := uint32(0); i < N; i++ {
+		portList[i] = strconv.Itoa(int(start + i))
+	}
+	return portList
+}
+
+// We set the cpu core number to 1 for a fair comparison with LongLive. Run the following command for the benchmark:
+// `go test -benchmem -run=^$ -bench ^BenchmarkDpss$ github.com/opDPSSTeam/DPSS/internal/DPSS -benchtime=1x -cpu 1 >> benchmark.log`
+func BenchmarkDpss(b *testing.B) {
+	for i, v := range tableF {
+		b.Run(fmt.Sprintf("F_%d", v.F), func(b *testing.B) {
+			log.Printf("F=%d", v.F)
+			F := v.F
+			N := 3*F + 1
+			startPoint := uint32(0)
+			for j := 0; j < i; j++ {
+				startPoint += 3*tableF[j].F + 1
+			}
+			ipList := genIpList(N)
+			portList := genPortList(8880+startPoint, N)
+			ipListNext := genIpList(N)
+			portListNext := genPortList(9880+startPoint, N)
+
+			sk, pk := party.SigKeyGen(N, 2*F+1)
+			skNew, pkNew := party.SigKeyGen(N, 2*F+1)
+
+			var p = make([]*party.HonestParty, N)
+			var pNext = make([]*party.HonestParty, N)
+
+			for i := uint32(0); i < N; i++ {
+				p[i] = party.NewHonestParty(0, N, F, i, ipList, portList, nil, nil, ipListNext, portListNext, pk, pkNew, sk[i])
+				pNext[i] = party.NewHonestParty(1, N, F, i, ipListNext, portListNext, ipList, portList, nil, nil, pkNew, nil, skNew[i])
+			}
+
+			for i := uint32(0); i < N; i++ {
+				p[i].InitReceiveChannel()
+				pNext[i].InitReceiveChannel()
+			}
+
+			for i := uint32(0); i < N; i++ {
+				p[i].InitSendChannel()
+				p[i].InitSendToNextChannel()
+				pNext[i].InitSendChannel()
+				pNext[i].InitSendToOldChannel()
+			}
+
+			var secret bls.Fr
+			var Gs bls.G1Point
+			bls.AsFr(&secret, uint64(12345))
+			bls.MulG1(&Gs, &bls.GenG1, &secret)
+
+			ID := utils.IntToBytes(1) //ID should be generated in this way (constraints in the implementation of MVBA)
+
+			//let p[0] initialize the shares and commitments
+			_, shares, _, _ := vss.VssShare(p[0], F, N, secret)
+			var Gsi bls.G1Point
+			vcom := make([]bls.G1Point, N)
+			for i := uint32(0); i < N; i++ {
+				bls.MulG1(&Gsi, &bls.GenG1, &shares[i+1])
+				vcom[i] = Gsi
+			}
+
+			for i := uint32(0); i < N; i++ {
+				p[i].SetShare(shares[i+1])
+				p[i].SetVCom(vcom)
+				p[i].SetGs(&Gs)
+			}
+
+			ctx, _ := context.WithCancel(context.Background())
+
+			b.ResetTimer()
+
+			var wg sync.WaitGroup
+			wg.Add(2 * int(N))
+
+			//old parties
+			for i := uint32(0); i < N; i++ {
+				go func(i uint32) {
+					DpssOld(ctx, p[i], ID, F, N)
+					fmt.Printf("[DPSS] [Old Party %v] exit\n", i)
+					// fmt.Printf("shares[1]: %v\n", shares[1].String())
+					wg.Done()
+				}(i)
+			}
+
+			//new parties
+			for i := uint32(0); i < N; i++ {
+				go func(i uint32) {
+					DpssNew(ctx, pNext[i], ID, F, N)
+					fmt.Printf("[DPSS] [New Party %v] exit\n", i)
+					wg.Done()
+				}(i)
+			}
+			wg.Wait()
+		})
+	}
 }

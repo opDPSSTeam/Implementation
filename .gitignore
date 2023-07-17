@@ -26,3 +26,5 @@ go.work
 cmd/metadata
 cmd/coefficients
 cmd/coefficients_new
+
+*.log

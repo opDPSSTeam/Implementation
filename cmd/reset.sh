@@ -1,7 +1,7 @@
-COUNTER=19080
+COUNTER=9080
 rm -rf metadata
 mkdir metadata
-for i in `seq 18880 $COUNTER`;
+for i in `seq 8880 $COUNTER`;
 do
   ans=`lsof -t -i tcp:$i`
   for element in $ans
