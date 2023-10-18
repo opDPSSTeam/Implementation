@@ -1,0 +1,235 @@
+syntax = "proto3";
+
+option go_package = "/protobuf";
+
+message Message {
+  string type = 1;// instance id
+  bytes id = 2;
+  uint32 sender = 3;
+  bytes data = 4;
+}
+
+
+// provable broadcast
+message Value{
+  bytes value = 1;// paload
+  bytes validation = 2;// for external validating
+}
+message Echo{
+  bytes sigshare = 1 ;
+}
+
+// smvba
+message Lock{
+  bytes value = 1;
+  bytes sig = 2;
+}
+message Finish{
+  bytes value = 1;
+  bytes sig = 2;
+}
+message Done{
+  bytes coinShare = 1 ;
+}
+message Halt{//Halt:=<Finish> of the round-leader
+  bytes value = 1;
+  bytes sig = 2;
+}
+message PreVote{
+  bool vote = 1;
+  bytes value = 2;
+  bytes sig = 3;
+}
+message Vote{
+  bool vote = 1;
+  bytes value =2;
+  bytes sig =3;
+  bytes sigshare = 4;
+}
+
+//apdb
+message Store{
+  bytes vc = 1;
+  bytes shard =2;
+  repeated bytes proof1 = 3;
+  repeated int64 proof2 = 4;
+}
+message Stored{
+  bytes sigshare = 1 ;
+}
+message Recast{
+  bytes shard = 1;
+  repeated bytes proof1 = 2;
+  repeated int64 proof2 = 3;
+}
+
+//vdd
+message Call{
+  repeated uint32 indices = 1;
+}
+message Strong{
+  repeated  uint32 shardIndices = 1;
+  repeated  bytes senderShards = 2;
+  repeated  bytes receiverShards = 3;
+}
+message Weak{
+  repeated  uint32 shardIndices = 1;
+  repeated  bytes senderShards = 2;
+}
+
+
+//Dory
+message Proposal{
+  bytes tx = 1;
+  repeated uint32 view = 2;
+}
+
+message BLock{
+  bytes hash = 1;
+  bytes sig = 2;
+}
+message BFinish{
+  bytes sig = 1;
+}
+message BLocked{
+  bytes sigshare = 1;
+}
+
+message BLockSetValue{
+  repeated uint32 pid = 1;
+  repeated bytes hash = 2;
+}
+message BLockSetValidation{
+  repeated bytes sig = 1;
+}
+
+//wpACSS
+message vInShare{
+  string s=1;
+  string dskShare=2;
+  repeated string recPolyEval = 3;
+}
+
+message PiVcomMerkle{
+  repeated bytes path = 1;
+  repeated int64 indicator = 2;
+}
+
+message ProofRec{
+  bytes dpki=1;
+  bytes PCdsk=2;
+  bytes VCdpk=3;
+  bytes wdski=4;
+  PiVcomMerkle piDpki=5;
+  repeated bytes PCphi=6;
+  repeated bytes wphi=7;
+}
+
+message piInShare{
+  bytes Gs=1;
+  bytes PCvss=2;
+  bytes wvssi=3;
+  bytes PCz=4;
+  bytes wz0 = 5;
+  bytes VCvs=6;
+  PiVcomMerkle piVs=7;
+  ProofRec proofRec=8;
+}
+
+message wpAcssShare{
+  vInShare v = 1;
+  piInShare p = 2;
+}
+
+message wpAcssEcho{
+  bytes sigshare = 1;
+}
+
+message wpAcssReady{
+  bytes md = 1;
+  bytes sig = 2;
+}
+
+message wpAcssFinish{
+  bytes sigshare = 1;
+}
+
+message wpAcssCallHelp{
+  uint32 caller = 1;
+  repeated uint32 indices = 2;
+}
+
+message proofDPRF{
+  bytes w=1;
+  bytes c=2;
+  bytes u=3;
+  bytes dpk=4;
+  PiVcomMerkle piDpk=5;
+}
+
+message proofHelp{
+  bytes Gs=1;
+  bytes PCdsk =2;
+  bytes PCmask =3;
+  bytes wiMask =4;
+  proofDPRF proofDPRF = 5;
+}
+
+message RecCont{
+  uint32 dealerID = 1;
+  bytes sMasked = 2;
+  bytes DPRFContribF = 3;
+  proofHelp piHelp = 4;
+}
+
+message wpAcssHelp{
+  repeated RecCont res = 1;
+}
+
+//Dpss
+message DpssCom{
+  bytes VCold = 1;
+  bytes Gsi = 2;
+  PiVcomMerkle piOld = 3;
+}
+
+message DpssProof{
+  bytes m = 1;
+  bytes sig = 2;
+}
+
+message MvbaTuple{
+  uint32 index = 1;
+  bytes md = 2;
+  bytes sig = 3;
+}
+
+message MvbaIn{
+  repeated MvbaTuple tuple = 1;
+}
+
+message NewCom{
+  bytes Gsi =1;
+}
+
+message Err{
+  bytes err = 1;
+}
+
+message AuxCont{
+  uint32 k = 1;
+  bytes Gs = 2;
+  bytes Cvcom = 3;
+  PiVcomMerkle piVcom = 4;
+}
+
+message Aux{
+  repeated AuxCont cont = 1;
+}
+
+//init sharing
+message Init{
+  bytes share = 1;
+  repeated bytes vcom = 2;
+  bytes Gs = 3;
+}
