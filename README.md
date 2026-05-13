@@ -1,6 +1,9 @@
-# Implementation of our DPSS protocol
+# Implementation of Optimistic DPSS protocol
 
-This repo is for the anonymous review of paper `Optimistic Asynchronous Dynamic-committee Proactive Secret Sharing`.
+This repository contains the implementation accompanying our IEEE Symposium on Security and Privacy (S&P) 2026 paper:
+
+> **Optimistic Asynchronous Dynamic-Committee Proactive Secret Sharing**
+
 
 ## Environment
 
@@ -8,7 +11,7 @@ We use Go v1.18 for the implementation and benchmarks.
 
 ## Branches
 
-There are four versions of our DPSS:
+The repository includes four implementations of our Dynamic-Committee Proactive Secret Sharing (DPSS) protocols, covering both optimistic and pessimistic execution paths, and using either Merkle-tree-based or Pointproofs-based vector commitments.
 
 | Version | Vector Commitment |    Case    |
 | ------- |-------------------|------------|
@@ -31,20 +34,48 @@ To run a local test, enter the `cmd` folder and run `test_main.sh`. To simulate 
 
 This command simulates the handoff between two committees with 4 nodes. The results are saved in the `metadata` folder.
 
-## To use Pointproofs
+## Using Pointproofs
 
-We made a Go wrapper for the Pointproofs vector commitment implementation by [zhenfeizhang](https://github.com/zhenfeizhang), see more in the `pointproofs` folder.
+We made a Go wrapper for the Pointproofs vector commitment implementation by [zhenfeizhang](https://github.com/zhenfeizhang), see more in the `pointproofs/` directory.
 
-To use Pointproofs in our DPSS, first build the Pointproofs as follows: 
+### Build Instructions
 
-1. Enter `./pointproofs` and run `make build` to generate `target` files
-2. Copy the `target` folder to `<DPSS_folder>/pkg` and rename it as `pointproofs_target`
-3. Export the library path by `export LD_LIBRARY_PATH=<absolute/path/to>/pointproofs_target/release`
-4. Run the local tests or `test_main.sh` in the `cmd` folder
+1. Enter the `pointproofs/` directory and build it to generate `target` files:
 
-## Run this implementation in AWS:
+```
+cd pointproofs
+make build
+```
 
-1. Enter `cmd` and run `go build`
-2. copy the executable binary file and the Pointproofs library (the `.so` file) to AWS
-3. Export the library path in AWS instances by `export LD_LIBRARY_PATH=absolute/path/to/pointproofs_target/release`
-4. Run
+1. Copy the `target/` directory to to the repository's `pkg/` directory and rename it as `pointproofs_target/`
+
+```
+cp -r target ../pkg/pointproofs_target
+```
+
+1. Export the shared library path, remember to fill the `<absolute-path-to>`:
+
+```
+export LD_LIBRARY_PATH=<absolute-path-to>/pointproofs_target/release
+```
+
+4. Run the local tests or `test_main.sh` in the `cmd/` repository
+
+## Running on AWS:
+
+1. Build the executable:
+
+```
+cd cmd
+go build
+```
+
+2. copy the executable binary file and the Pointproofs library (the `.so` files) to each AWS instance
+
+
+3. Set the library path in each AWS instance:
+```
+export LD_LIBRARY_PATH=absolute/path/to/pointproofs_target/release
+```
+
+4. Run the executables
