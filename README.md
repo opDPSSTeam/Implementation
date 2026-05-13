@@ -11,14 +11,14 @@ We use Go v1.18 for the implementation and benchmarks.
 
 ## Branches
 
-The repository includes four implementations of our Dynamic-Committee Proactive Secret Sharing (DPSS) protocols, covering both optimistic and pessimistic execution paths, and using either Merkle-tree-based or Pointproofs-based vector commitments.
+The repository includes four implementations of our Dynamic-Committee Proactive Secret Sharing (DPSS) protocols, covering both optimistic and pessimistic execution paths, and using either Merkle-tree-based or Pointproofs-based vector commitments. Compared to the Pointproofs-based DPSS, the Merkle-tree based variant reduces the computational cost but increases the communication complexity from $O(\lambda n^2)$ to $O(\lambda n^2 \log n)$ in the optimistic case.
 
-| Version | Vector Commitment |    Case    |
-| ------- |-------------------|------------|
-|DPSS_Merkle|    [Merkle tree](https://github.com/cbergoon/merkletree)    | Optimistic<sup>*</sup> |
-|DPSS_Merkle_worst|    [Merkle tree](https://github.com/cbergoon/merkletree)    | Optimistic<sup>**</sup> | 
-|DPSS_Pointproofs|    [Pointproofs](https://github.com/zhenfeizhang/pointproofs)    |    Worst<sup>**</sup>   |
-|DPSS_Pointproofs_worst|    [Pointproofs](https://github.com/zhenfeizhang/pointproofs)    |    Worst<sup>**</sup>   |
+| Version | Branch | Vector Commitment |    Case    |  Communication complexity| Message complexity|
+| ------- |------- |-------------------|------------|----|----|
+|DPSS_Merkle| main | [Merkle tree](https://github.com/cbergoon/merkletree)    | Optimistic<sup>*</sup> | $O(\lambda n^2\log n)$|  $O(n^2)$ |
+|DPSS_Merkle_worst| main-pess |    [Merkle tree](https://github.com/cbergoon/merkletree)    | Worst<sup>**</sup> | $O(\lambda n^3)$|  $O(n^2)$ |
+|DPSS_Pointproofs| pointproofs |    [Pointproofs](https://github.com/zhenfeizhang/pointproofs)    |    Optimistic<sup>*</sup>   | $O(\lambda n^2)$|  $O(n^2)$ |
+|DPSS_Pointproofs_worst|  pointproofs-pess|  [Pointproofs](https://github.com/zhenfeizhang/pointproofs)    |    Worst<sup>**</sup>   | $O(\lambda n^3)$|  $O(n^2)$ |
 
 <sup>*</sup> In the optimistic case, the share recovery protocol is never invoked, and the new commitments are generated via an optimistic path. 
 
